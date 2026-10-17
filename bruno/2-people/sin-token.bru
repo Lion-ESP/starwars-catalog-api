@@ -1,0 +1,22 @@
+meta {
+  name: Sin token (401)
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{baseUrl}}/api/v1/people
+  body: none
+  auth: none
+}
+
+tests {
+  test("responde 401 con Problem Details", function () {
+    expect(res.status).to.equal(401);
+    expect(res.body.status).to.equal(401);
+  });
+}
+
+docs {
+  Todo el catálogo requiere un JWT válido.
+}

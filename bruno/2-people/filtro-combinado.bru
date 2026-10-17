@@ -1,0 +1,28 @@
+meta {
+  name: Filtro combinado (id=1&name=luke)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/v1/people?id=1&name=luke
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{userToken}}
+}
+
+tests {
+  test("devuelve a Luke Skywalker", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.content).to.have.lengthOf(1);
+    expect(res.body.content[0].name).to.equal("Luke Skywalker");
+    expect(res.body.totalElements).to.equal(1);
+  });
+}
+
+docs {
+  Con id y name a la vez se aplican los dos filtros: la persona 1 tiene que coincidir además con el nombre.
+}

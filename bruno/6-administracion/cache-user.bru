@@ -1,0 +1,26 @@
+meta {
+  name: Vaciar caché con USER (403)
+  type: http
+  seq: 1
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/admin/cache
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{userToken}}
+}
+
+tests {
+  test("responde 403 con Problem Details", function () {
+    expect(res.status).to.equal(403);
+    expect(res.body.status).to.equal(403);
+  });
+}
+
+docs {
+  El rol USER solo lee el catálogo.
+}

@@ -1,0 +1,27 @@
+meta {
+  name: Tamaño de página inválido (size=500, 400)
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/v1/people?size=500
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{userToken}}
+}
+
+tests {
+  test("responde 400 y nombra el parámetro size", function () {
+    expect(res.status).to.equal(400);
+    expect(res.body.status).to.equal(400);
+    expect(JSON.stringify(res.body)).to.contain("size");
+  });
+}
+
+docs {
+  size admite de 1 a 100. El error nombra el parámetro inválido.
+}

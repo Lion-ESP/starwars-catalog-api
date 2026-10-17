@@ -1,0 +1,29 @@
+meta {
+  name: Detalle de una nave (/starships/9)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/starships/9
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{userToken}}
+}
+
+tests {
+  test("devuelve la Estrella de la Muerte con atributos tipados", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.id).to.equal("9");
+    expect(res.body.name).to.equal("Death Star");
+    expect(res.body.crew).to.be.a("number");
+    expect(res.body.pilotIds).to.be.an("array");
+  });
+}
+
+docs {
+  Valores como 843,342 o 1000000000000 se exponen como números de 64 bits; los desconocidos, como null.
+}

@@ -1,0 +1,25 @@
+meta {
+  name: Vaciar caché con ADMIN (204)
+  type: http
+  seq: 2
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/admin/cache
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+
+tests {
+  test("responde 204 sin cuerpo", function () {
+    expect(res.status).to.equal(204);
+  });
+}
+
+docs {
+  Solo ADMIN puede vaciar la caché de SWAPI. La próxima consulta vuelve a llamar a SWAPI.
+}

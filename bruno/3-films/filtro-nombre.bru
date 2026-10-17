@@ -1,0 +1,28 @@
+meta {
+  name: Filtro por nombre (name=hope)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/films?name=hope
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{userToken}}
+}
+
+tests {
+  test("devuelve solo el film que coincide con hope", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.totalElements).to.equal(1);
+    expect(res.body.content[0].title).to.contain("Hope");
+    expect(res.body.content[0].episodeId).to.equal(4);
+  });
+}
+
+docs {
+  El parámetro name se llama igual en los cuatro recursos. En films SWAPI lo espera como title, y la API lo traduce.
+}

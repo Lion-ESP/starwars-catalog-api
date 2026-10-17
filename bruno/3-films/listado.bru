@@ -1,0 +1,32 @@
+meta {
+  name: Listado paginado (page=2, size=4)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/films?page=2&size=4
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{userToken}}
+}
+
+tests {
+  test("devuelve los 2 últimos films de 6", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.page).to.equal(2);
+    expect(res.body.size).to.equal(4);
+    expect(res.body.totalElements).to.equal(6);
+    expect(res.body.totalPages).to.equal(2);
+    expect(res.body.content).to.have.lengthOf(2);
+    expect(res.body.content[0].title).to.be.a("string");
+    expect(res.body.content[0].releaseDate).to.match(/^\d{4}-\d{2}-\d{2}$/);
+  });
+}
+
+docs {
+  SWAPI no pagina los films: la API pide los 6 y pagina en memoria. releaseDate es una fecha y episodeId un número.
+}

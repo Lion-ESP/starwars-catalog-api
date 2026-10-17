@@ -1,0 +1,29 @@
+meta {
+  name: Filtro por nombre (name=sky)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/people?name=sky
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{userToken}}
+}
+
+tests {
+  test("devuelve solo coincidencias parciales de sky", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.totalElements).to.be.greaterThan(0);
+    res.body.content.forEach(function (person) {
+      expect(person.name.toLowerCase()).to.contain("sky");
+    });
+  });
+}
+
+docs {
+  El filtro name es parcial y no distingue mayúsculas. SWAPI devuelve todas las coincidencias y la API las pagina en memoria.
+}

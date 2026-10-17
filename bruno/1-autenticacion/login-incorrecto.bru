@@ -1,0 +1,31 @@
+meta {
+  name: Login con contraseña incorrecta (401)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "{{user}}",
+    "password": "contraseña-incorrecta"
+  }
+}
+
+tests {
+  test("responde 401 con Problem Details", function () {
+    expect(res.status).to.equal(401);
+    expect(res.body.status).to.equal(401);
+    expect(res.body.title).to.be.a("string");
+    expect(res.body.detail).to.be.a("string");
+  });
+}
+
+docs {
+  Una contraseña incorrecta y un usuario inexistente devuelven el mismo detalle, para no revelar si el usuario existe.
+}

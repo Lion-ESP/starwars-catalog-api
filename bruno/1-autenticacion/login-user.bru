@@ -1,0 +1,38 @@
+meta {
+  name: Login de user
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "{{user}}",
+    "password": "{{user-password}}"
+  }
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setVar("userToken", res.body.accessToken);
+  }
+}
+
+tests {
+  test("responde 200 con un JWT Bearer", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.tokenType).to.equal("Bearer");
+    expect(res.body.accessToken).to.be.a("string");
+    expect(res.body.accessToken.split(".")).to.have.lengthOf(3);
+    expect(res.body.expiresIn).to.equal(3600);
+  });
+}
+
+docs {
+  Login del usuario demo con rol USER. El script post-response guarda el token en la variable de runtime userToken (bru.setVar), que usan los requests siguientes. El token no se persiste en ningún archivo.
+}

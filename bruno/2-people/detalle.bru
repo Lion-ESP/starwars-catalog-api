@@ -1,0 +1,30 @@
+meta {
+  name: Detalle de una persona (/people/1)
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/people/1
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{userToken}}
+}
+
+tests {
+  test("devuelve la entidad con atributos tipados", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.id).to.equal("1");
+    expect(res.body.name).to.equal("Luke Skywalker");
+    expect(res.body.height).to.be.a("number");
+    expect(res.body.homeworldId).to.be.a("string");
+    expect(res.body.filmIds).to.be.an("array");
+  });
+}
+
+docs {
+  Los textos numéricos de SWAPI se exponen como números y las relaciones como ids.
+}

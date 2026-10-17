@@ -1,0 +1,30 @@
+meta {
+  name: Listado paginado
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/v1/starships?page=1&size=5
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{userToken}}
+}
+
+tests {
+  test("devuelve una página de 5 naves", function () {
+    expect(res.status).to.equal(200);
+    expect(res.body.page).to.equal(1);
+    expect(res.body.size).to.equal(5);
+    expect(res.body.totalElements).to.equal(36);
+    expect(res.body.content).to.have.lengthOf(5);
+    expect(res.body.content[0].name).to.be.a("string");
+  });
+}
+
+docs {
+  Mismo comportamiento de paginación que People.
+}
