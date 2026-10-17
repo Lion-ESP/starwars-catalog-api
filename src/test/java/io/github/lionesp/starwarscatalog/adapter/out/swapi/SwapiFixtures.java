@@ -16,7 +16,7 @@ import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
-final class SwapiFixtures {
+public final class SwapiFixtures {
 
 	static final Duration DEFAULT_RETRY_AFTER = Duration.ofSeconds(30);
 
@@ -42,7 +42,7 @@ final class SwapiFixtures {
 		return new SwapiResilience(breakerRegistry, retryRegistry);
 	}
 
-	static JsonNode firstItem(String fixtureName) {
+	public static JsonNode firstItem(String fixtureName) {
 		JsonNode root = read(fixtureName);
 		if (root.has("results")) {
 			return root.get("results").get(0);
@@ -51,7 +51,7 @@ final class SwapiFixtures {
 		return result.isArray() ? result.get(0) : result;
 	}
 
-	static String page(JsonNode item, int count, int totalRecords, int totalPages) {
+	public static String page(JsonNode item, int count, int totalRecords, int totalPages) {
 		ObjectNode root = MAPPER.createObjectNode();
 		root.put("message", "ok");
 		root.put("total_records", totalRecords);
@@ -60,14 +60,14 @@ final class SwapiFixtures {
 		return root.toString();
 	}
 
-	static String list(JsonNode item, int count, String namePrefix) {
+	public static String list(JsonNode item, int count, String namePrefix) {
 		ObjectNode root = MAPPER.createObjectNode();
 		root.put("message", "ok");
 		root.set("result", copies(item, count, namePrefix));
 		return root.toString();
 	}
 
-	static String detail(JsonNode item) {
+	public static String detail(JsonNode item) {
 		ObjectNode root = MAPPER.createObjectNode();
 		root.put("message", "ok");
 		root.set("result", item);
