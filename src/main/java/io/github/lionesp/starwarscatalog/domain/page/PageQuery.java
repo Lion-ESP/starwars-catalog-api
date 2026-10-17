@@ -5,13 +5,19 @@ import io.github.lionesp.starwarscatalog.domain.exception.InvalidParameterExcept
 /**
  * Pagination request: a 1-based page number and a page size.
  * <p>
- * {@code page} must be at least {@value #DEFAULT_PAGE} with no upper bound, and {@code size}
- * must be between 1 and {@value #MAX_SIZE}.
+ * {@code page} must be at least {@value #MIN_PAGE} with no upper bound, and {@code size}
+ * must be between {@value #MIN_SIZE} and {@value #MAX_SIZE}.
  *
  * @param page 1-based page number
  * @param size number of elements per page
  */
 public record PageQuery(int page, int size) {
+
+	/** Smallest page number a client may request. */
+	public static final int MIN_PAGE = 1;
+
+	/** Smallest size a client may request. */
+	public static final int MIN_SIZE = 1;
 
 	/** Page used when the client sends none. */
 	public static final int DEFAULT_PAGE = 1;
@@ -28,11 +34,11 @@ public record PageQuery(int page, int size) {
 	 * @throws InvalidParameterException if {@code page} or {@code size} is out of range
 	 */
 	public PageQuery {
-		if (page < DEFAULT_PAGE) {
-			throw new InvalidParameterException("page", "page must be greater than or equal to " + DEFAULT_PAGE);
+		if (page < MIN_PAGE) {
+			throw new InvalidParameterException("page", "page must be greater than or equal to " + MIN_PAGE);
 		}
-		if (size < 1 || size > MAX_SIZE) {
-			throw new InvalidParameterException("size", "size must be between 1 and " + MAX_SIZE);
+		if (size < MIN_SIZE || size > MAX_SIZE) {
+			throw new InvalidParameterException("size", "size must be between " + MIN_SIZE + " and " + MAX_SIZE);
 		}
 	}
 
