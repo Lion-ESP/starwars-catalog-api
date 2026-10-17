@@ -21,3 +21,7 @@ app:
       - username: admin
         password-hash: "$2a$10$CVz0fr32LAUrWVbEsCvmn..9/lohoGR516UXBSi2v4nVUfQO2ZuGu"
         roles: [USER, ADMIN]
+
+logging:
+  pattern:
+    correlation: "[%X{requestId:-}] "
