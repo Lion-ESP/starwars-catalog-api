@@ -1,5 +1,9 @@
 package io.github.lionesp.starwarscatalog.adapter.out.swapi;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.resilience4j.retry.RetryConfig;
+import io.github.resilience4j.retry.RetryRegistry;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -28,7 +32,14 @@ final class SwapiFixtures {
 	static SwapiClient client(String baseUrl, Duration readTimeout, Clock clock) {
 		SwapiProperties properties = properties(baseUrl, readTimeout);
 		RestClient restClient = new SwapiClientConfig().swapiRestClient(properties);
-		return new SwapiClient(restClient, properties, clock);
+		return new SwapiClient(restClient, properties, clock, passThroughResilience());
+	}
+
+	static SwapiResilience passThroughResilience() {
+		RetryRegistry retryRegistry = RetryRegistry.of(RetryConfig.custom().maxAttempts(1).build());
+		CircuitBreakerRegistry breakerRegistry = CircuitBreakerRegistry
+			.of(CircuitBreakerConfig.custom().minimumNumberOfCalls(1_000_000).slidingWindowSize(1_000_000).build());
+		return new SwapiResilience(breakerRegistry, retryRegistry);
 	}
 
 	static JsonNode firstItem(String fixtureName) {

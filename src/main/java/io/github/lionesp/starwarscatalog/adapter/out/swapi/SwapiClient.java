@@ -16,6 +16,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.ResolvableType;
 import org.springframework.http.HttpStatus;
@@ -28,10 +29,15 @@ import org.springframework.web.client.RestClientException;
 
 /**
  * Raw HTTP client for SWAPI: returns the provider DTOs and translates transport and status failures into
- * the {@code Swapi*Exception} family.
+ * the {@code Swapi*Exception} family. Results are cached in the {@code swapi} cache, outside the retry and
+ * circuit breaker, so a cache hit never reaches SWAPI nor the breaker.
  */
 @Component
 public class SwapiClient {
+
+	private static final String CACHE_NAME = "swapi";
+
+	private static final String CACHE_KEY = "#root.methodName + '|' + T(java.util.Arrays).toString(#root.args)";
 
 	private static final String RATE_LIMIT_RESET_HEADER = "x-ratelimit-reset";
 
@@ -43,17 +49,21 @@ public class SwapiClient {
 
 	private final Clock clock;
 
+	private final SwapiResilience resilience;
+
 	/**
 	 * Creates the client.
 	 *
 	 * @param restClient the HTTP client already pointing at SWAPI
 	 * @param properties SWAPI settings
 	 * @param clock      clock used to compute {@code Retry-After}
+	 * @param resilience retry and circuit breaker applied to every call that misses the cache
 	 */
-	public SwapiClient(RestClient restClient, SwapiProperties properties, Clock clock) {
+	public SwapiClient(RestClient restClient, SwapiProperties properties, Clock clock, SwapiResilience resilience) {
 		this.restClient = restClient;
 		this.properties = properties;
 		this.clock = clock;
+		this.resilience = resilience;
 	}
 
 	/**
@@ -66,6 +76,7 @@ public class SwapiClient {
 	 * @param <P>            properties type
 	 * @return the SWAPI page
 	 */
+	@Cacheable(cacheNames = CACHE_NAME, sync = true, key = CACHE_KEY)
 	public <P> SwapiPageResponse<P> fetchPage(SwapiResource resource, Class<P> propertiesType, int page, int limit) {
 		return this.<SwapiPageResponse<P>>execute(responseType(SwapiPageResponse.class, propertiesType),
 				"/{resource}?page={page}&limit={limit}&expanded=true", resource.path(), page, limit)
@@ -80,6 +91,7 @@ public class SwapiClient {
 	 * @param <P>            properties type
 	 * @return all the items
 	 */
+	@Cacheable(cacheNames = CACHE_NAME, sync = true, key = CACHE_KEY)
 	public <P> List<SwapiItem<P>> fetchAll(SwapiResource resource, Class<P> propertiesType) {
 		SwapiListResponse<P> response = this.<SwapiListResponse<P>>execute(responseType(SwapiListResponse.class, propertiesType),
 				"/{resource}", resource.path())
@@ -96,6 +108,7 @@ public class SwapiClient {
 	 * @param <P>            properties type
 	 * @return the matching items, possibly empty
 	 */
+	@Cacheable(cacheNames = CACHE_NAME, sync = true, key = CACHE_KEY)
 	public <P> List<SwapiItem<P>> search(SwapiResource resource, Class<P> propertiesType, String name) {
 		SwapiListResponse<P> response = this.<SwapiListResponse<P>>execute(responseType(SwapiListResponse.class, propertiesType),
 				"/{resource}?{param}={name}", resource.path(), resource.searchParam(), name)
@@ -112,6 +125,7 @@ public class SwapiClient {
 	 * @param <P>            properties type
 	 * @return the item, or empty when SWAPI answers 404
 	 */
+	@Cacheable(cacheNames = CACHE_NAME, sync = true, key = CACHE_KEY)
 	public <P> Optional<SwapiItem<P>> fetchById(SwapiResource resource, Class<P> propertiesType, String id) {
 		return this.<SwapiItemResponse<P>>execute(responseType(SwapiItemResponse.class, propertiesType),
 				"/{resource}/{id}", resource.path(), id)
@@ -137,6 +151,10 @@ public class SwapiClient {
 	}
 
 	private <B> Optional<B> execute(ParameterizedTypeReference<B> type, String template, Object... variables) {
+		return resilience.execute(() -> call(type, template, variables));
+	}
+
+	private <B> Optional<B> call(ParameterizedTypeReference<B> type, String template, Object... variables) {
 		try {
 			return restClient.get().uri(template, variables).exchange((request, response) -> {
 				HttpStatusCode status = response.getStatusCode();
