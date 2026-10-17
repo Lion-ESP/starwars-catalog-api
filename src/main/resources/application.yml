@@ -25,3 +25,9 @@ app:
 logging:
   pattern:
     correlation: "[%X{requestId:-}] "
+
+swapi:
+  base-url: https://www.swapi.tech/api
+  connect-timeout: 2s
+  read-timeout: 5s
+  default-retry-after: 30s
