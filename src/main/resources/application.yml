@@ -7,3 +7,17 @@ spring:
 
 server:
   port: ${PORT:8080}
+
+app:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:}
+      issuer: starwars-catalog-api
+      expiration: 1h
+    users:
+      - username: user
+        password-hash: "$2a$10$hyIKNta2TirY7Mj1Mtu6v.UHioYC6nuLTQfWqPTMFcg9G3mDzuyQu"
+        roles: [USER]
+      - username: admin
+        password-hash: "$2a$10$CVz0fr32LAUrWVbEsCvmn..9/lohoGR516UXBSi2v4nVUfQO2ZuGu"
+        roles: [USER, ADMIN]
