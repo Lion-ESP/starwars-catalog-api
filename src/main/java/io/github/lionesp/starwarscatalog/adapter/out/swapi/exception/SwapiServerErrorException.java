@@ -5,6 +5,7 @@ package io.github.lionesp.starwarscatalog.adapter.out.swapi.exception;
  */
 public class SwapiServerErrorException extends RuntimeException {
 
+	/** HTTP status returned by SWAPI. */
 	private final int status;
 
 	/**

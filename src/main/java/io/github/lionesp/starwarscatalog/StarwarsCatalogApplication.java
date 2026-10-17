@@ -12,6 +12,11 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 @ConfigurationPropertiesScan
 public class StarwarsCatalogApplication {
 
+	/**
+	 * Starts the application.
+	 *
+	 * @param args command line arguments
+	 */
 	public static void main(String[] args) {
 		SpringApplication.run(StarwarsCatalogApplication.class, args);
 	}

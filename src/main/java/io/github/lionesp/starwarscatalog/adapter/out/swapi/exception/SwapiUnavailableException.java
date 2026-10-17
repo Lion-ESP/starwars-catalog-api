@@ -7,6 +7,7 @@ import java.time.Duration;
  */
 public abstract class SwapiUnavailableException extends RuntimeException {
 
+	/** Suggested wait before retrying. */
 	private final Duration retryAfter;
 
 	/**

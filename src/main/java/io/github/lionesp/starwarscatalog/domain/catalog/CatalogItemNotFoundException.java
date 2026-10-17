@@ -5,6 +5,7 @@ package io.github.lionesp.starwarscatalog.domain.catalog;
  */
 public class CatalogItemNotFoundException extends RuntimeException {
 
+	/** Id that was looked up. */
 	private final String id;
 
 	/**

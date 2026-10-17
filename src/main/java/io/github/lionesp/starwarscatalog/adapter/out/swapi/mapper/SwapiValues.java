@@ -13,6 +13,7 @@ import java.util.Set;
  */
 public final class SwapiValues {
 
+	/** Texts SWAPI uses for a missing value; they map to {@code null}. */
 	static final Set<String> UNKNOWN_TOKENS = Set.of("unknown", "n/a", "none", "");
 
 	private static final Pattern INTEGER = Pattern.compile("-?\\d+");

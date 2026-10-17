@@ -24,6 +24,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
+	/** Generic detail used for any login failure, so it does not reveal whether the user exists. */
 	static final String INVALID_CREDENTIALS_DETAIL = "Invalid username or password";
 
 	/**

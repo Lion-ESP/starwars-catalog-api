@@ -8,6 +8,7 @@ package io.github.lionesp.starwarscatalog.domain.exception;
  */
 public class InvalidParameterException extends RuntimeException {
 
+	/** Name of the rejected parameter. */
 	private final String parameter;
 
 	/**
