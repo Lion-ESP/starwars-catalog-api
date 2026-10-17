@@ -1,0 +1,9 @@
+services:
+  api:
+    build: .
+    image: starwars-catalog-api
+    ports:
+      - "8080:8080"
+    mem_limit: 512m
+    environment:
+      JWT_SECRET: "${JWT_SECRET:?Definí JWT_SECRET antes de levantar, por ejemplo export JWT_SECRET=$(openssl rand -base64 48)}"
