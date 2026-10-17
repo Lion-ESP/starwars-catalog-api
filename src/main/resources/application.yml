@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: starwars-catalog-api
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: ${PORT:8080}
