@@ -80,6 +80,7 @@ public class SecurityConfig {
 						.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
 						.requestMatchers("/api/v1/admin/**", "/actuator/metrics/**").hasRole(ROLE_ADMIN)
 						.requestMatchers("/api/v1/**").hasAnyRole(ROLE_USER, ROLE_ADMIN)
+						.requestMatchers("/actuator/**").authenticated()
 						.anyRequest().denyAll())
 				.exceptionHandling(handling -> handling
 						.authenticationEntryPoint(entryPoint)

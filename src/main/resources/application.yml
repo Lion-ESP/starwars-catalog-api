@@ -61,3 +61,13 @@ resilience4j:
           - io.github.lionesp.starwarscatalog.adapter.out.swapi.exception.SwapiTimeoutException
           - io.github.lionesp.starwarscatalog.adapter.out.swapi.exception.SwapiConnectionException
           - io.github.lionesp.starwarscatalog.adapter.out.swapi.exception.SwapiBadResponseException
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

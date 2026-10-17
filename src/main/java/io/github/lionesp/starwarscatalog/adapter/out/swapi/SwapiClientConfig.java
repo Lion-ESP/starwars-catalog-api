@@ -1,7 +1,6 @@
 package io.github.lionesp.starwarscatalog.adapter.out.swapi;
 
 import java.net.http.HttpClient;
-import java.time.Clock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -25,16 +24,6 @@ public class SwapiClientConfig {
 		JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
 		requestFactory.setReadTimeout(properties.readTimeout());
 		return RestClient.builder().baseUrl(properties.baseUrl()).requestFactory(requestFactory).build();
-	}
-
-	/**
-	 * Provides the clock used to compute {@code Retry-After} values.
-	 *
-	 * @return the system UTC clock
-	 */
-	@Bean
-	public Clock clock() {
-		return Clock.systemUTC();
 	}
 
 }
