@@ -1,8 +1,12 @@
 package io.github.lionesp.starwarscatalog.adapter.in.rest;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -16,15 +20,22 @@ import io.github.lionesp.starwarscatalog.adapter.out.swapi.exception.SwapiServer
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.exception.SwapiTimeoutException;
 import io.github.lionesp.starwarscatalog.domain.catalog.CatalogFilter;
 import io.github.lionesp.starwarscatalog.domain.catalog.CatalogItemNotFoundException;
+import io.github.lionesp.starwarscatalog.domain.page.Page;
 import io.github.lionesp.starwarscatalog.domain.page.PageQuery;
 import java.time.Duration;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 
+@ExtendWith(OutputCaptureExtension.class)
 class ApiExceptionHandlerTest extends CatalogWebTestSupport {
 
 	private static final String PEOPLE_URL = "/api/v1/people";
@@ -114,5 +125,96 @@ class ApiExceptionHandlerTest extends CatalogWebTestSupport {
 				.andExpect(status().isNotFound())
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
 				.andExpect(jsonPath("$.title").value("Not Found"));
+	}
+
+	@ParameterizedTest(name = "name longer than 100 characters is rejected on {0}")
+	@ValueSource(strings = {"people", "films", "starships", "vehicles"})
+	void overlongNameIsRejectedWithTheParameterName(String resource) throws Exception {
+		String overlongName = "a".repeat(101);
+
+		mockMvc.perform(get("/api/v1/" + resource).param("name", overlongName)
+						.header(HttpHeaders.AUTHORIZATION, userToken()))
+				.andExpect(status().isBadRequest())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.parameter").value("name"))
+				.andExpect(jsonPath("$.detail").value(containsString("name")));
+	}
+
+	@Test
+	@DisplayName("name of exactly 100 characters is accepted")
+	void nameOfMaximumLengthIsAccepted() throws Exception {
+		String maximumLengthName = "a".repeat(100);
+		when(peopleService.list(any(CatalogFilter.class), any(PageQuery.class)))
+				.thenReturn(new Page<>(List.of(), 1, 10, 0, 0));
+
+		mockMvc.perform(get(PEOPLE_URL).param("name", maximumLengthName)
+						.header(HttpHeaders.AUTHORIZATION, userToken()))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	@DisplayName("an unsupported method answers 405 Problem Details with the Allow header")
+	void unsupportedMethodIsMethodNotAllowed() throws Exception {
+		mockMvc.perform(post(PEOPLE_URL).header(HttpHeaders.AUTHORIZATION, userToken()))
+				.andExpect(status().isMethodNotAllowed())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(header().exists(HttpHeaders.ALLOW))
+				.andExpect(jsonPath("$.status").value(405));
+	}
+
+	@Test
+	@DisplayName("an unknown route with a valid token answers 404 Problem Details")
+	void unknownRouteIsNotFound() throws Exception {
+		mockMvc.perform(get("/api/v1/nothing-here").header(HttpHeaders.AUTHORIZATION, userToken()))
+				.andExpect(status().isNotFound())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.status").value(404));
+	}
+
+	@Test
+	@DisplayName("an unexpected exception answers a generic 500 without internal details")
+	void unexpectedExceptionIsInternalServerErrorWithoutDetails() throws Exception {
+		when(peopleService.get("1")).thenThrow(new IllegalStateException("secret internal state"));
+
+		mockMvc.perform(get(PEOPLE_URL + "/1").header(HttpHeaders.AUTHORIZATION, userToken()))
+				.andExpect(status().isInternalServerError())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.status").value(500))
+				.andExpect(content().string(not(containsString("secret internal state"))))
+				.andExpect(content().string(not(containsString("IllegalStateException"))));
+	}
+
+	@Test
+	@DisplayName("an unexpected exception is logged as an error with the stack and the request id")
+	void unexpectedExceptionIsLoggedAsErrorWithRequestId(CapturedOutput output) throws Exception {
+		when(peopleService.get("1")).thenThrow(new IllegalStateException("secret internal state"));
+
+		mockMvc.perform(get(PEOPLE_URL + "/1").header(HttpHeaders.AUTHORIZATION, userToken())
+				.header(CorrelationIdFilter.HEADER_NAME, "req-500"));
+
+		assertThat(output.getAll()).contains("ERROR").contains("req-500")
+				.contains("java.lang.IllegalStateException: secret internal state");
+	}
+
+	@Test
+	@DisplayName("a 502 is logged as a warning with the request id")
+	void badGatewayIsLoggedAsWarningWithRequestId(CapturedOutput output) throws Exception {
+		when(peopleService.get("1")).thenThrow(new SwapiServerErrorException(500));
+
+		mockMvc.perform(get(PEOPLE_URL + "/1").header(HttpHeaders.AUTHORIZATION, userToken())
+				.header(CorrelationIdFilter.HEADER_NAME, "req-502"));
+
+		assertThat(output.getAll()).contains("WARN").contains("req-502").contains("SwapiServerErrorException");
+	}
+
+	@Test
+	@DisplayName("a 503 is logged as a warning with the request id")
+	void serviceUnavailableIsLoggedAsWarningWithRequestId(CapturedOutput output) throws Exception {
+		when(peopleService.get("1")).thenThrow(new SwapiRateLimitedException(Duration.ofSeconds(12)));
+
+		mockMvc.perform(get(PEOPLE_URL + "/1").header(HttpHeaders.AUTHORIZATION, userToken())
+				.header(CorrelationIdFilter.HEADER_NAME, "req-503"));
+
+		assertThat(output.getAll()).contains("WARN").contains("req-503").contains("SwapiRateLimitedException");
 	}
 }

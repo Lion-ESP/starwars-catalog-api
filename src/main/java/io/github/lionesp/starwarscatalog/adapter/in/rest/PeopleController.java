@@ -2,6 +2,7 @@ package io.github.lionesp.starwarscatalog.adapter.in.rest;
 
 import io.github.lionesp.starwarscatalog.adapter.in.rest.dto.PageResponse;
 import io.github.lionesp.starwarscatalog.application.CatalogService;
+import io.github.lionesp.starwarscatalog.config.OpenApiConfig;
 import io.github.lionesp.starwarscatalog.domain.catalog.CatalogFilter;
 import io.github.lionesp.starwarscatalog.domain.model.Person;
 import io.github.lionesp.starwarscatalog.domain.page.PageQuery;
@@ -13,6 +14,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/people")
 @Tag(name = "People", description = "Read-only catalog of Star Wars people")
-@SecurityRequirement(name = "bearerAuth")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 public class PeopleController {
 
 	private final CatalogService<Person> service;
@@ -53,17 +55,21 @@ public class PeopleController {
 	@GetMapping
 	@Operation(summary = "List people", description = "Paginated listing with optional id and name filters.")
 	@ApiResponse(responseCode = "200", description = "Requested page")
-	@ApiResponse(responseCode = "400", description = "Invalid page, size or id",
+	@ApiResponse(responseCode = "400", description = "Invalid page, size, id or name (longer than 100 characters)",
 			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
 					schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "401", description = "Missing or invalid token",
+			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+					schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "403", description = "The token does not have the USER or ADMIN role",
 			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
 					schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "502", description = "SWAPI failed or answered something unexpected",
 			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
 					schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "503", description = "SWAPI is temporarily unavailable",
-			headers = @Header(name = "Retry-After", description = "Seconds to wait before retrying"),
+			headers = @Header(name = "Retry-After", description = "Seconds to wait before retrying",
+					schema = @Schema(type = "integer")),
 			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
 					schema = @Schema(implementation = ProblemDetail.class)))
 	public PageResponse<Person> list(
@@ -73,8 +79,8 @@ public class PeopleController {
 			@RequestParam(required = false) Integer size,
 			@Parameter(description = "Exact id, a positive integer")
 			@RequestParam(required = false) String id,
-			@Parameter(description = "Case-insensitive partial name (blank is ignored)")
-			@RequestParam(required = false) String name) {
+			@Parameter(description = "Case-insensitive partial name (blank is ignored, up to 100 characters)")
+			@Size(max = 100) @RequestParam(required = false) String name) {
 		return PageResponse.from(service.list(CatalogFilter.of(id, name), PageQuery.of(page, size)));
 	}
 
@@ -85,12 +91,15 @@ public class PeopleController {
 	 * @return the item
 	 */
 	@GetMapping("/{id}")
-	@Operation(summary = "Get one of people by id")
+	@Operation(summary = "Get a person by id")
 	@ApiResponse(responseCode = "200", description = "The item")
 	@ApiResponse(responseCode = "400", description = "Invalid id",
 			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
 					schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "401", description = "Missing or invalid token",
+			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+					schema = @Schema(implementation = ProblemDetail.class)))
+	@ApiResponse(responseCode = "403", description = "The token does not have the USER or ADMIN role",
 			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
 					schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "404", description = "No item with that id",
@@ -100,7 +109,8 @@ public class PeopleController {
 			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
 					schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "503", description = "SWAPI is temporarily unavailable",
-			headers = @Header(name = "Retry-After", description = "Seconds to wait before retrying"),
+			headers = @Header(name = "Retry-After", description = "Seconds to wait before retrying",
+					schema = @Schema(type = "integer")),
 			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
 					schema = @Schema(implementation = ProblemDetail.class)))
 	public Person get(@PathVariable String id) {

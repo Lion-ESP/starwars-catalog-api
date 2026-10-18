@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -31,6 +32,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
@@ -148,6 +150,53 @@ class AuthControllerTest {
 				.andExpect(status().isOk());
 	}
 
+	@Test
+	@DisplayName("a failed login carries the Bearer challenge in WWW-Authenticate")
+	void failedLoginCarriesTheBearerChallenge() throws Exception {
+		login("user", "wrong-password")
+				.andExpect(status().isUnauthorized())
+				.andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"));
+	}
+
+	@ParameterizedTest(name = "a login body that is {0} answers 400 Problem Details")
+	@CsvSource(delimiter = '|', value = {
+			"malformed|{bad",
+			"empty|"
+	})
+	void unreadableLoginBodyIsBadRequestProblemDetails(String kind, String body) throws Exception {
+		mockMvc.perform(post(LOGIN_URL).contentType(MediaType.APPLICATION_JSON).content(body == null ? "" : body))
+				.andExpect(status().isBadRequest())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.status").value(400));
+	}
+
+	@Test
+	@DisplayName("a login with a non-JSON content type answers 415 Problem Details")
+	void unsupportedLoginContentTypeIsProblemDetails() throws Exception {
+		mockMvc.perform(post(LOGIN_URL).contentType(MediaType.TEXT_PLAIN).content("user"))
+				.andExpect(status().isUnsupportedMediaType())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+	}
+
+	@ParameterizedTest(name = "{0} longer than 72 characters is rejected naming the field")
+	@ValueSource(strings = {"username", "password"})
+	void overlongCredentialIsRejectedNamingTheField(String field) throws Exception {
+		String overlong = "a".repeat(73);
+		String username = "username".equals(field) ? overlong : "user";
+		String password = "password".equals(field) ? overlong : "user-password";
+
+		login(username, password)
+				.andExpect(status().isBadRequest())
+				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+				.andExpect(jsonPath("$.detail").value(containsString(field)));
+	}
+
+	@Test
+	@DisplayName("a credential of exactly 72 characters passes validation")
+	void credentialOfMaximumLengthPassesValidation() throws Exception {
+		login("u".repeat(72), "p".repeat(72)).andExpect(status().isUnauthorized());
+	}
+
 	private ResultActions login(String username, String password) throws Exception {
 		String body = "{\"username\":\"" + username + "\",\"password\":\"" + password + "\"}";
 		return mockMvc.perform(post(LOGIN_URL).contentType(MediaType.APPLICATION_JSON).content(body));
@@ -162,7 +211,7 @@ class AuthControllerTest {
 			case "expired" -> new TokenService(jwtProperties, Clock.fixed(Instant.now().minus(Duration.ofHours(2)), ZoneOffset.UTC))
 					.issue("user", List.of("USER"));
 			case "badSignature" -> new TokenService(new JwtProperties(
-					"some-other-secret-with-more-than-32-bytes", jwtProperties.issuer(), Duration.ofHours(1)))
+					"some-other-secret-with-more-than-32-bytes", jwtProperties.issuer(), Duration.ofHours(1)), Clock.systemUTC())
 					.issue("user", List.of("USER"));
 			default -> "not.a.jwt";
 		};
@@ -175,5 +224,10 @@ class AuthControllerTest {
 			ProblemDetailsAuthenticationEntryPoint.class,
 			ProblemDetailsAccessDeniedHandler.class})
 	static class TestApplication {
+
+		@Bean
+		Clock clock() {
+			return Clock.systemUTC();
+		}
 	}
 }

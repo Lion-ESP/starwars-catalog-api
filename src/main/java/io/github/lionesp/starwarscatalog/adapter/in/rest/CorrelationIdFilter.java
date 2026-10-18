@@ -29,6 +29,7 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
 	/** MDC key under which the correlation id is published. */
 	public static final String MDC_KEY = "requestId";
 
+	private static final String REQUEST_ID_ATTRIBUTE = CorrelationIdFilter.class.getName() + ".REQUEST_ID";
 	private static final int MAX_LENGTH = 64;
 	private static final Pattern ALLOWED = Pattern.compile("[A-Za-z0-9._-]+");
 
@@ -44,7 +45,7 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
 			throws ServletException, IOException {
-		String requestId = resolve(request.getHeader(HEADER_NAME));
+		String requestId = resolveForRequest(request);
 		response.setHeader(HEADER_NAME, requestId);
 		MDC.put(MDC_KEY, requestId);
 		try {
@@ -52,6 +53,26 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
 		} finally {
 			MDC.remove(MDC_KEY);
 		}
+	}
+
+	/**
+	 * Lets the filter run again on the error dispatch, so the logs written while rendering an error carry the
+	 * same id as the response.
+	 *
+	 * @return {@code false}, always
+	 */
+	@Override
+	protected boolean shouldNotFilterErrorDispatch() {
+		return false;
+	}
+
+	private static String resolveForRequest(HttpServletRequest request) {
+		if (request.getAttribute(REQUEST_ID_ATTRIBUTE) instanceof String resolved) {
+			return resolved;
+		}
+		String requestId = resolve(request.getHeader(HEADER_NAME));
+		request.setAttribute(REQUEST_ID_ATTRIBUTE, requestId);
+		return requestId;
 	}
 
 	private static String resolve(String incoming) {

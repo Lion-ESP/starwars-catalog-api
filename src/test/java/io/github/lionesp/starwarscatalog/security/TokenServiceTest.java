@@ -23,7 +23,7 @@ class TokenServiceTest {
 	@Test
 	@DisplayName("E1: el token emitido lleva iss, sub, iat, exp y roles")
 	void issuedTokenCarriesTheExpectedClaims() {
-		TokenService tokenService = new TokenService(properties);
+		TokenService tokenService = new TokenService(properties, Clock.systemUTC());
 
 		String token = tokenService.issue("admin", List.of("USER", "ADMIN"));
 		Jwt decoded = tokenService.decoder().decode(token);
@@ -37,7 +37,7 @@ class TokenServiceTest {
 	@Test
 	@DisplayName("E1: expiresInSeconds refleja la vigencia configurada")
 	void expiresInSecondsMatchesConfiguredLifetime() {
-		TokenService tokenService = new TokenService(properties);
+		TokenService tokenService = new TokenService(properties, Clock.systemUTC());
 
 		assertThat(tokenService.expiresInSeconds()).isEqualTo(3600);
 	}
@@ -48,7 +48,7 @@ class TokenServiceTest {
 		Clock twoHoursAgo = Clock.fixed(Instant.now().minus(Duration.ofHours(2)), ZoneOffset.UTC);
 		String expiredToken = new TokenService(properties, twoHoursAgo).issue("user", List.of("USER"));
 
-		assertThatThrownBy(() -> new TokenService(properties).decoder().decode(expiredToken))
+		assertThatThrownBy(() -> new TokenService(properties, Clock.systemUTC()).decoder().decode(expiredToken))
 				.isInstanceOf(JwtException.class);
 	}
 
@@ -57,9 +57,9 @@ class TokenServiceTest {
 	void tokenSignedWithAnotherSecretIsRejected() {
 		JwtProperties otherSecret = new JwtProperties("another-secret-with-more-than-32-bytes!", ISSUER,
 				Duration.ofHours(1));
-		String foreignToken = new TokenService(otherSecret).issue("user", List.of("USER"));
+		String foreignToken = new TokenService(otherSecret, Clock.systemUTC()).issue("user", List.of("USER"));
 
-		assertThatThrownBy(() -> new TokenService(properties).decoder().decode(foreignToken))
+		assertThatThrownBy(() -> new TokenService(properties, Clock.systemUTC()).decoder().decode(foreignToken))
 				.isInstanceOf(JwtException.class);
 	}
 
@@ -67,9 +67,9 @@ class TokenServiceTest {
 	@DisplayName("E5: un token de otro emisor es rechazado")
 	void tokenFromAnotherIssuerIsRejected() {
 		JwtProperties otherIssuer = new JwtProperties(SECRET, "someone-else", Duration.ofHours(1));
-		String foreignToken = new TokenService(otherIssuer).issue("user", List.of("USER"));
+		String foreignToken = new TokenService(otherIssuer, Clock.systemUTC()).issue("user", List.of("USER"));
 
-		assertThatThrownBy(() -> new TokenService(properties).decoder().decode(foreignToken))
+		assertThatThrownBy(() -> new TokenService(properties, Clock.systemUTC()).decoder().decode(foreignToken))
 				.isInstanceOf(JwtException.class);
 	}
 }

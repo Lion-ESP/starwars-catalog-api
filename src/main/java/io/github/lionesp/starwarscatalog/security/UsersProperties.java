@@ -24,6 +24,16 @@ public record UsersProperties(@DefaultValue List<@Valid User> users) {
 	 * @param passwordHash BCrypt hash of the password
 	 * @param roles        roles without the {@code ROLE_} prefix, for example {@code USER}
 	 */
-	public record User(@NotBlank String username, @NotBlank String passwordHash, @NotEmpty List<String> roles) {
+	public record User(@NotBlank String username, @NotBlank String passwordHash, @NotEmpty List<@NotBlank String> roles) {
+
+		/**
+		 * Describes the user without revealing the password hash.
+		 *
+		 * @return a masked description
+		 */
+		@Override
+		public String toString() {
+			return "User[username=" + username + ", passwordHash=****, roles=" + roles + "]";
+		}
 	}
 }

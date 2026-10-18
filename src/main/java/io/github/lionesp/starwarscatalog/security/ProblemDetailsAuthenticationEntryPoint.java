@@ -34,7 +34,7 @@ public class ProblemDetailsAuthenticationEntryPoint implements AuthenticationEnt
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED,
 				"Authentication is required with a valid bearer token");
 		problem.setTitle("Unauthorized");
+		response.setHeader(HttpHeaders.WWW_AUTHENTICATE, TokenService.BEARER_SCHEME);
 		ProblemDetailsWriter.write(objectMapper, request, response, problem);
-		response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
 	}
 }

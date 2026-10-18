@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URI;
+import java.util.Optional;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import tools.jackson.databind.ObjectMapper;
@@ -16,8 +17,16 @@ final class ProblemDetailsWriter {
 	private ProblemDetailsWriter() {
 	}
 
+	private static Optional<URI> instanceOf(HttpServletRequest request) {
+		try {
+			return Optional.of(URI.create(request.getRequestURI()));
+		} catch (IllegalArgumentException | NullPointerException invalidUri) {
+			return Optional.empty();
+		}
+	}
+
 	/**
-	 * Writes the problem as {@code application/problem+json} with the request URI as instance.
+	 * Writes the problem as {@code application/problem+json} with the request URI as instance when it is a valid URI.
 	 *
 	 * @param objectMapper serializer for the body
 	 * @param request      current request
@@ -27,7 +36,7 @@ final class ProblemDetailsWriter {
 	 */
 	static void write(ObjectMapper objectMapper, HttpServletRequest request, HttpServletResponse response,
 			ProblemDetail problem) throws IOException {
-		problem.setInstance(URI.create(request.getRequestURI()));
+		instanceOf(request).ifPresent(problem::setInstance);
 		response.setStatus(problem.getStatus());
 		response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
 		objectMapper.writeValue(response.getOutputStream(), problem);

@@ -87,4 +87,25 @@ class CorrelationIdFilterTest {
 		assertThat(UUID.fromString(outcome.responseHeader())).isNotNull();
 		assertThat(outcome.mdcDuringRequest()).isEqualTo(outcome.responseHeader());
 	}
+
+	@Test
+	void errorDispatchReusesTheIdResolvedInTheFirstPass() throws Exception {
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		AtomicReference<String> mdcInErrorDispatch = new AtomicReference<>();
+		filter.doFilter(request, response, new MockFilterChain());
+		String idOfFirstPass = response.getHeader(CorrelationIdFilter.HEADER_NAME);
+
+		request.setDispatcherType(jakarta.servlet.DispatcherType.ERROR);
+		MockHttpServletResponse errorResponse = new MockHttpServletResponse();
+		filter.doFilter(request, errorResponse, new MockFilterChain() {
+			@Override
+			public void doFilter(jakarta.servlet.ServletRequest req, jakarta.servlet.ServletResponse res) {
+				mdcInErrorDispatch.set(MDC.get(CorrelationIdFilter.MDC_KEY));
+			}
+		});
+
+		assertThat(mdcInErrorDispatch.get()).isEqualTo(idOfFirstPass);
+		assertThat(errorResponse.getHeader(CorrelationIdFilter.HEADER_NAME)).isEqualTo(idOfFirstPass);
+	}
 }

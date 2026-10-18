@@ -1,6 +1,7 @@
 package io.github.lionesp.starwarscatalog.adapter.in.rest;
 
 import io.github.lionesp.starwarscatalog.application.CacheAdminService;
+import io.github.lionesp.starwarscatalog.config.OpenApiConfig;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -21,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/admin")
 @Tag(name = "Admin", description = "Administrative operations")
-@SecurityRequirement(name = "bearerAuth")
+@SecurityRequirement(name = OpenApiConfig.BEARER_AUTH)
 public class AdminController {
 
 	private final CacheAdminService cacheAdminService;

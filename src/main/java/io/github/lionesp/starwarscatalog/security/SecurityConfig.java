@@ -1,11 +1,11 @@
 package io.github.lionesp.starwarscatalog.security;
 
 import jakarta.servlet.DispatcherType;
+import java.time.Clock;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -37,7 +37,6 @@ public class SecurityConfig {
 
 	private static final String ROLE_USER = "USER";
 	private static final String ROLE_ADMIN = "ADMIN";
-	private static final String ROLE_PREFIX = "ROLE_";
 
 	/**
 	 * Chain for the endpoints that need no authentication.
@@ -51,7 +50,7 @@ public class SecurityConfig {
 	SecurityFilterChain publicFilterChain(HttpSecurity http) throws Exception {
 		PathPatternRequestMatcher.Builder paths = PathPatternRequestMatcher.withDefaults();
 		RequestMatcher publicEndpoints = new OrRequestMatcher(
-				paths.matcher(HttpMethod.POST, "/api/v1/auth/login"),
+				paths.matcher("/api/v1/auth/login"),
 				paths.matcher("/actuator/health"),
 				paths.matcher("/swagger-ui.html"),
 				paths.matcher("/swagger-ui/**"),
@@ -106,7 +105,7 @@ public class SecurityConfig {
 	private JwtAuthenticationConverter jwtAuthenticationConverter() {
 		JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
 		authorities.setAuthoritiesClaimName(TokenService.ROLES_CLAIM);
-		authorities.setAuthorityPrefix(ROLE_PREFIX);
+		authorities.setAuthorityPrefix(TokenService.ROLE_PREFIX);
 		JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
 		converter.setJwtGrantedAuthoritiesConverter(authorities);
 		return converter;
@@ -116,11 +115,24 @@ public class SecurityConfig {
 	 * Token issuer and decoder factory.
 	 *
 	 * @param properties JWT settings
+	 * @param clock      source of the issue time
 	 * @return the token service
 	 */
 	@Bean
-	TokenService tokenService(JwtProperties properties) {
-		return new TokenService(properties);
+	TokenService tokenService(JwtProperties properties, Clock clock) {
+		return new TokenService(properties, clock);
+	}
+
+	/**
+	 * Login use case that checks the credentials and issues the token.
+	 *
+	 * @param authenticationManager checks the credentials
+	 * @param tokenService          issues the token
+	 * @return the login service
+	 */
+	@Bean
+	LoginService loginService(AuthenticationManager authenticationManager, TokenService tokenService) {
+		return new LoginService(authenticationManager, tokenService);
 	}
 
 	/**

@@ -38,4 +38,24 @@ public record JwtProperties(
 	public boolean isSecretValid() {
 		return secret != null && secret.getBytes(StandardCharsets.UTF_8).length >= MIN_SECRET_BYTES;
 	}
+
+	/**
+	 * Checks that tokens live for a positive amount of time.
+	 *
+	 * @return {@code true} when the expiration is positive, or absent (reported by {@code @NotNull})
+	 */
+	@AssertTrue(message = "app.security.jwt.expiration must be positive")
+	public boolean isExpirationPositive() {
+		return expiration == null || expiration.isPositive();
+	}
+
+	/**
+	 * Describes the settings without revealing the signing secret.
+	 *
+	 * @return a masked description
+	 */
+	@Override
+	public String toString() {
+		return "JwtProperties[secret=****, issuer=" + issuer + ", expiration=" + expiration + "]";
+	}
 }

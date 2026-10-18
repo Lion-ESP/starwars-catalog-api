@@ -25,22 +25,19 @@ public class TokenService {
 	/** Name of the claim that carries the user roles. */
 	public static final String ROLES_CLAIM = "roles";
 
+	/** Prefix Spring Security puts on role authorities, for example {@code ROLE_USER}. */
+	public static final String ROLE_PREFIX = "ROLE_";
+
+	/** Authentication scheme of the issued tokens, as used in {@code WWW-Authenticate} and {@code Authorization}. */
+	public static final String BEARER_SCHEME = "Bearer";
+
 	private final JwtProperties properties;
 	private final Clock clock;
 	private final SecretKey key;
 	private final JwtEncoder encoder;
 
 	/**
-	 * Creates the service using the system clock.
-	 *
-	 * @param properties JWT settings
-	 */
-	public TokenService(JwtProperties properties) {
-		this(properties, Clock.systemUTC());
-	}
-
-	/**
-	 * Creates the service with an explicit clock, so tests can issue tokens at a chosen instant.
+	 * Creates the service.
 	 *
 	 * @param properties JWT settings
 	 * @param clock      source of the issue time
