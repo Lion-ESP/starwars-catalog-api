@@ -9,6 +9,7 @@ import io.github.lionesp.starwarscatalog.domain.page.InMemoryPaginator;
 import io.github.lionesp.starwarscatalog.domain.page.Page;
 import io.github.lionesp.starwarscatalog.domain.page.PageQuery;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -50,18 +51,17 @@ public class SwapiCatalogAdapter<P, T extends CatalogItem> implements CatalogPor
 			return InMemoryPaginator.paginate(toDomain(client.fetchAll(resource, propertiesType)), query);
 		}
 		SwapiPageResponse<P> response = client.fetchPage(resource, propertiesType, query.page(), query.size());
-		int totalRecords = response.totalRecords() == null ? 0 : response.totalRecords();
-		int totalPages = response.totalPages() == null ? 0 : response.totalPages();
+		int totalRecords = response.totalRecords();
+		int totalPages = response.totalPages();
 		if (query.page() > totalPages) {
 			return Page.empty(query, totalRecords);
 		}
-		List<SwapiItem<P>> items = response.results() == null ? List.of() : response.results();
-		return Page.of(toDomain(items), query, totalRecords);
+		return Page.of(toDomain(response.results()), query, totalRecords);
 	}
 
 	@Override
 	public List<T> findAllByName(String name) {
-		return toDomain(client.search(resource, propertiesType, name));
+		return toDomain(client.search(resource, propertiesType, name.toLowerCase(Locale.ROOT)));
 	}
 
 	@Override

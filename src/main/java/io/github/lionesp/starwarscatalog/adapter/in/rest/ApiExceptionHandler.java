@@ -1,8 +1,7 @@
 package io.github.lionesp.starwarscatalog.adapter.in.rest;
 
-import io.github.lionesp.starwarscatalog.adapter.out.swapi.exception.SwapiBadResponseException;
-import io.github.lionesp.starwarscatalog.adapter.out.swapi.exception.SwapiServerErrorException;
-import io.github.lionesp.starwarscatalog.adapter.out.swapi.exception.SwapiUnavailableException;
+import io.github.lionesp.starwarscatalog.application.port.out.CatalogUnavailableException;
+import io.github.lionesp.starwarscatalog.application.port.out.CatalogUpstreamException;
 import io.github.lionesp.starwarscatalog.domain.catalog.CatalogItemNotFoundException;
 import io.github.lionesp.starwarscatalog.domain.exception.InvalidParameterException;
 import java.time.Duration;
@@ -103,13 +102,13 @@ public class ApiExceptionHandler {
 	}
 
 	/**
-	 * Handles a SWAPI failure that is not worth waiting for.
+	 * Handles a provider failure that is not worth waiting for.
 	 *
 	 * @param exception the upstream failure
 	 * @return a 502 problem with a generic detail
 	 */
-	@ExceptionHandler({SwapiServerErrorException.class, SwapiBadResponseException.class})
-	ProblemDetail handleUpstreamFailure(RuntimeException exception) {
+	@ExceptionHandler(CatalogUpstreamException.class)
+	ProblemDetail handleUpstreamFailure(CatalogUpstreamException exception) {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY,
 				"The upstream service failed or answered something unexpected");
 		problem.setTitle("Bad Gateway");
@@ -117,13 +116,13 @@ public class ApiExceptionHandler {
 	}
 
 	/**
-	 * Handles a SWAPI outage that the client may retry later.
+	 * Handles a provider outage that the client may retry later.
 	 *
 	 * @param exception the upstream unavailability
 	 * @return a 503 problem with a {@code Retry-After} header in whole seconds
 	 */
-	@ExceptionHandler(SwapiUnavailableException.class)
-	ResponseEntity<ProblemDetail> handleUpstreamUnavailable(SwapiUnavailableException exception) {
+	@ExceptionHandler(CatalogUnavailableException.class)
+	ResponseEntity<ProblemDetail> handleUpstreamUnavailable(CatalogUnavailableException exception) {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE,
 				"The upstream service is temporarily unavailable");
 		problem.setTitle("Service Unavailable");

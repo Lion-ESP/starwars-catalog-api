@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import io.github.lionesp.starwarscatalog.adapter.in.rest.CorrelationIdFilter;
+import io.github.lionesp.starwarscatalog.adapter.out.swapi.SwapiClient;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.SwapiFixtures;
 import io.github.lionesp.starwarscatalog.security.JwtProperties;
 import io.github.lionesp.starwarscatalog.security.TokenService;
@@ -78,7 +79,7 @@ class CatalogEndToEndTest {
 	@BeforeEach
 	void resetState() {
 		wireMock.resetAll();
-		cacheManager.getCache("swapi").clear();
+		cacheManager.getCache(SwapiClient.CACHE_NAME).clear();
 		circuitBreakerRegistry.circuitBreaker("swapi").reset();
 	}
 

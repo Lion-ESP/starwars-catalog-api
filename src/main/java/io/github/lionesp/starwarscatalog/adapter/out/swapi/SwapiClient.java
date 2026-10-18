@@ -29,13 +29,16 @@ import org.springframework.web.client.RestClientException;
 
 /**
  * Raw HTTP client for SWAPI: returns the provider DTOs and translates transport and status failures into
- * the {@code Swapi*Exception} family. Results are cached in the {@code swapi} cache, outside the retry and
+ * the {@code Swapi*Exception} family. A 200 whose envelope or items are incomplete is a
+ * {@link SwapiBadResponseException}, thrown before the cached method returns so it is never cached. Results are
+ * cached in the {@value #CACHE_NAME} cache, outside the retry and
  * circuit breaker, so a cache hit never reaches SWAPI nor the breaker.
  */
 @Component
 public class SwapiClient {
 
-	private static final String CACHE_NAME = "swapi";
+	/** Name of the Spring cache that holds the SWAPI results. */
+	public static final String CACHE_NAME = "swapi";
 
 	private static final String CACHE_KEY = "#root.methodName + '|' + T(java.util.Arrays).toString(#root.args)";
 
@@ -78,9 +81,15 @@ public class SwapiClient {
 	 */
 	@Cacheable(cacheNames = CACHE_NAME, sync = true, key = CACHE_KEY)
 	public <P> SwapiPageResponse<P> fetchPage(SwapiResource resource, Class<P> propertiesType, int page, int limit) {
-		return this.<SwapiPageResponse<P>>execute(responseType(SwapiPageResponse.class, propertiesType),
+		SwapiPageResponse<P> response = this.<SwapiPageResponse<P>>execute(
+				responseType(SwapiPageResponse.class, propertiesType),
 				"/{resource}?page={page}&limit={limit}&expanded=true", resource.path(), page, limit)
 			.orElseThrow(() -> unexpectedNotFound(resource));
+		if (response.totalRecords() == null || response.totalPages() == null) {
+			throw new SwapiBadResponseException("SWAPI page without total_records or total_pages");
+		}
+		requireItems(response.results(), "results");
+		return response;
 	}
 
 	/**
@@ -129,11 +138,26 @@ public class SwapiClient {
 	public <P> Optional<SwapiItem<P>> fetchById(SwapiResource resource, Class<P> propertiesType, String id) {
 		return this.<SwapiItemResponse<P>>execute(responseType(SwapiItemResponse.class, propertiesType),
 				"/{resource}/{id}", resource.path(), id)
-			.map(SwapiItemResponse::result);
+			.map(response -> requireComplete(response.result()));
 	}
 
 	private static <P> List<SwapiItem<P>> itemsOf(SwapiListResponse<P> response) {
-		return response.result() == null ? List.of() : response.result();
+		requireItems(response.result(), "result");
+		return response.result();
+	}
+
+	private static <P> void requireItems(List<SwapiItem<P>> items, String field) {
+		if (items == null) {
+			throw new SwapiBadResponseException("SWAPI answered without '" + field + "'");
+		}
+		items.forEach(SwapiClient::requireComplete);
+	}
+
+	private static <P> SwapiItem<P> requireComplete(SwapiItem<P> item) {
+		if (item == null || item.uid() == null || item.properties() == null) {
+			throw new SwapiBadResponseException("SWAPI answered an item without uid or properties");
+		}
+		return item;
 	}
 
 	private static ParameterizedTypeReference<?> rawResponseType(Class<?> envelope, Class<?> propertiesType) {
@@ -147,7 +171,7 @@ public class SwapiClient {
 	}
 
 	private static SwapiBadResponseException unexpectedNotFound(SwapiResource resource) {
-		return new SwapiBadResponseException("SWAPI answered 404 for the " + resource.path() + " collection", null);
+		return new SwapiBadResponseException("SWAPI answered 404 for the " + resource.path() + " collection");
 	}
 
 	private <B> Optional<B> execute(ParameterizedTypeReference<B> type, String template, Object... variables) {
@@ -161,7 +185,7 @@ public class SwapiClient {
 				if (status.is2xxSuccessful()) {
 					B body = response.bodyTo(type);
 					if (body == null) {
-						throw new SwapiBadResponseException("SWAPI answered with an empty body", null);
+						throw new SwapiBadResponseException("SWAPI answered with an empty body");
 					}
 					return Optional.of(body);
 				}
@@ -174,7 +198,7 @@ public class SwapiClient {
 				if (status.is5xxServerError()) {
 					throw new SwapiServerErrorException(status.value());
 				}
-				throw new SwapiBadResponseException("SWAPI answered with unexpected status " + status.value(), null);
+				throw new SwapiBadResponseException("SWAPI answered with unexpected status " + status.value());
 			});
 		}
 		catch (ResourceAccessException exception) {
@@ -205,7 +229,10 @@ public class SwapiClient {
 		try {
 			long secondsUntilReset = Long.parseLong(resetHeader.trim()) - clock.instant().getEpochSecond();
 			Duration wait = Duration.ofSeconds(secondsUntilReset);
-			return wait.compareTo(MIN_RETRY_AFTER) < 0 ? MIN_RETRY_AFTER : wait;
+			if (wait.compareTo(MIN_RETRY_AFTER) < 0) {
+				return MIN_RETRY_AFTER;
+			}
+			return wait.compareTo(properties.maxRetryAfter()) > 0 ? properties.maxRetryAfter() : wait;
 		}
 		catch (NumberFormatException exception) {
 			return properties.defaultRetryAfter();

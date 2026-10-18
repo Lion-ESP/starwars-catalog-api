@@ -8,7 +8,6 @@ import io.github.lionesp.starwarscatalog.adapter.out.swapi.dto.SwapiStarshipProp
 import io.github.lionesp.starwarscatalog.domain.model.Starship;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import tools.jackson.core.type.TypeReference;

@@ -67,7 +67,7 @@ class SwapiResilienceTest {
 	@BeforeEach
 	void resetState() {
 		wireMock.resetAll();
-		cacheManager.getCache("swapi").clear();
+		cacheManager.getCache(SwapiClient.CACHE_NAME).clear();
 		circuitBreakerRegistry.circuitBreaker("swapi").reset();
 	}
 
@@ -187,6 +187,20 @@ class SwapiResilienceTest {
 
 		assertThat(bufferedCallsAfterMiss).isEqualTo(1);
 		assertThat(breaker.getMetrics().getNumberOfBufferedCalls()).isEqualTo(bufferedCallsAfterMiss);
+	}
+
+	@Test
+	void rateLimitedResponses_areNotRecordedByTheCircuitBreaker() {
+		wireMock.stubFor(get(urlEqualTo("/people/1")).willReturn(aResponse().withStatus(429)));
+		CircuitBreaker breaker = circuitBreakerRegistry.circuitBreaker("swapi");
+		int bufferedCallsBefore = breaker.getMetrics().getNumberOfBufferedCalls();
+
+		for (int attempt = 0; attempt < 6; attempt++) {
+			assertThatThrownBy(() -> fetchPerson("1")).isInstanceOf(SwapiRateLimitedException.class);
+		}
+
+		assertThat(breaker.getMetrics().getNumberOfBufferedCalls()).isEqualTo(bufferedCallsBefore);
+		assertThat(breaker.getState()).isEqualTo(CircuitBreaker.State.CLOSED);
 	}
 
 }

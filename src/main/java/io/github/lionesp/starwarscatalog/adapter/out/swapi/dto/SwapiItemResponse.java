@@ -1,8 +1,6 @@
 package io.github.lionesp.starwarscatalog.adapter.out.swapi.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.List;
 
 /**
  * Envelope of a SWAPI detail, where {@code result} is a single item.

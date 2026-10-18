@@ -4,6 +4,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -12,8 +13,11 @@ import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import io.github.lionesp.starwarscatalog.adapter.out.cache.CaffeineCatalogCache;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.dto.SwapiItem;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.dto.SwapiPersonProperties;
+import io.github.lionesp.starwarscatalog.adapter.out.swapi.exception.SwapiBadResponseException;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.exception.SwapiServerErrorException;
+import io.github.lionesp.starwarscatalog.domain.model.Person;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.lionesp.starwarscatalog.adapter.out.swapi.mapper.PersonMapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -60,7 +64,7 @@ class SwapiCachingTest {
 	@BeforeEach
 	void resetState() {
 		wireMock.resetAll();
-		cacheManager.getCache("swapi").clear();
+		cacheManager.getCache(SwapiClient.CACHE_NAME).clear();
 		circuitBreakerRegistry.circuitBreaker("swapi").reset();
 	}
 
@@ -146,6 +150,33 @@ class SwapiCachingTest {
 
 		catalogCache.evictAll();
 		fetchPerson("1");
+
+		wireMock.verify(2, getRequestedFor(urlEqualTo("/people/1")));
+	}
+
+	@Test
+	void searchesThatDifferOnlyInCase_shareOneCacheEntry() {
+		String body = SwapiFixtures.list(SwapiFixtures.firstItem("people-page"), 1, null);
+		wireMock.stubFor(get(urlPathEqualTo("/people")).willReturn(
+				aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody(body)));
+		SwapiCatalogAdapter<SwapiPersonProperties, Person> adapter = new SwapiCatalogAdapter<>(SwapiResource.PEOPLE,
+				client, new PersonMapper(), SwapiPersonProperties.class);
+
+		var capitalizedSearch = adapter.findAllByName("Luke");
+		var lowerCaseSearch = adapter.findAllByName("luke");
+
+		assertThat(lowerCaseSearch).isEqualTo(capitalizedSearch);
+		wireMock.verify(1, getRequestedFor(urlPathEqualTo("/people")));
+	}
+
+	@Test
+	void incompleteEnvelope_isNotCached() {
+		wireMock.stubFor(get(urlEqualTo("/people/1")).willReturn(aResponse().withStatus(200)
+			.withHeader("Content-Type", "application/json")
+			.withBody("{\"message\":\"ok\",\"result\":null}")));
+
+		assertThatThrownBy(() -> fetchPerson("1")).isInstanceOf(SwapiBadResponseException.class);
+		assertThatThrownBy(() -> fetchPerson("1")).isInstanceOf(SwapiBadResponseException.class);
 
 		wireMock.verify(2, getRequestedFor(urlEqualTo("/people/1")));
 	}

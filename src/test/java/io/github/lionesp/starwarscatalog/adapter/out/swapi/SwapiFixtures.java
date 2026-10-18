@@ -20,13 +20,16 @@ public final class SwapiFixtures {
 
 	static final Duration DEFAULT_RETRY_AFTER = Duration.ofSeconds(30);
 
+	static final Duration MAX_RETRY_AFTER = Duration.ofMinutes(15);
+
 	private static final JsonMapper MAPPER = JsonMapper.builder().build();
 
 	private SwapiFixtures() {
 	}
 
 	static SwapiProperties properties(String baseUrl, Duration readTimeout) {
-		return new SwapiProperties(baseUrl, Duration.ofSeconds(1), readTimeout, DEFAULT_RETRY_AFTER);
+		return new SwapiProperties(baseUrl, Duration.ofSeconds(1), readTimeout, DEFAULT_RETRY_AFTER,
+				MAX_RETRY_AFTER);
 	}
 
 	static SwapiClient client(String baseUrl, Duration readTimeout, Clock clock) {

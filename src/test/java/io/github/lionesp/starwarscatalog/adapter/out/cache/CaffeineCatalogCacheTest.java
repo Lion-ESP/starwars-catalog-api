@@ -1,7 +1,9 @@
 package io.github.lionesp.starwarscatalog.adapter.out.cache;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.github.lionesp.starwarscatalog.adapter.out.swapi.SwapiClient;
 import io.github.lionesp.starwarscatalog.config.CacheConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -21,7 +23,7 @@ class CaffeineCatalogCacheTest {
 	@Test
 	void E8_evictAll_removesEveryEntryOfTheSwapiCache() {
 		runner.run(context -> {
-			Cache swapiCache = context.getBean(CacheManager.class).getCache("swapi");
+			Cache swapiCache = context.getBean(CacheManager.class).getCache(SwapiClient.CACHE_NAME);
 			swapiCache.put("people-1", "luke");
 			swapiCache.put("films-1", "a-new-hope");
 
@@ -35,12 +37,23 @@ class CaffeineCatalogCacheTest {
 	@Test
 	void E8_cacheAcceptsNullValues() {
 		runner.run(context -> {
-			Cache swapiCache = context.getBean(CacheManager.class).getCache("swapi");
+			Cache swapiCache = context.getBean(CacheManager.class).getCache(SwapiClient.CACHE_NAME);
 
 			swapiCache.put("people-9999", null);
 
 			assertThat(swapiCache.get("people-9999")).isNotNull();
 		});
+	}
+
+	@Test
+	void evictAllFailsWhenTheSwapiCacheIsNotConfigured() {
+		new ApplicationContextRunner()
+			.withConfiguration(AutoConfigurations.of(CacheAutoConfiguration.class))
+			.withUserConfiguration(CacheConfig.class, CaffeineCatalogCache.class)
+			.withPropertyValues("spring.cache.cache-names=other")
+			.run(context -> assertThatThrownBy(() -> context.getBean(CaffeineCatalogCache.class).evictAll())
+				.isInstanceOf(IllegalStateException.class)
+				.hasMessageContaining(SwapiClient.CACHE_NAME));
 	}
 
 }

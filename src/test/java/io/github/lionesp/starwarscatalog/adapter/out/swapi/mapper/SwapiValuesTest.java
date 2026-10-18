@@ -102,4 +102,37 @@ class SwapiValuesTest {
 		assertThat(SwapiValues.idsFromUrls(filmUrls)).containsExactly("1", "5");
 	}
 
+	@ParameterizedTest
+	@ValueSource(strings = { "1,2,3", "1,5", "12,34", "1234,567", ",123", "1,234," })
+	void misplacedThousandsSeparatorsBecomeNull(String misplacedSeparators) {
+		assertThat(SwapiValues.toLong(misplacedSeparators)).isNull();
+		assertThat(SwapiValues.toDouble(misplacedSeparators)).isNull();
+	}
+
+	@Test
+	void groupedThousandsAreParsedInIntegersAndDecimals() {
+		assertThat(SwapiValues.toLong("1,234,567")).isEqualTo(1_234_567L);
+		assertThat(SwapiValues.toDouble("1,234.5")).isEqualTo(1234.5);
+	}
+
+	@Test
+	void decimalBeyondDoubleRangeBecomesNull() {
+		String beyondDouble = "1" + "0".repeat(400);
+
+		assertThat(SwapiValues.toDouble(beyondDouble)).isNull();
+	}
+
+	@Test
+	void slashOnlyUrlHasNoId() {
+		assertThat(SwapiValues.idFromUrl("/")).isNull();
+		assertThat(SwapiValues.idFromUrl("https://www.swapi.tech/api/films//")).isNull();
+	}
+
+	@Test
+	void slashOnlyUrlIsDroppedFromTheIdList() {
+		List<String> mixedUrls = List.of("/", "https://www.swapi.tech/api/films/2");
+
+		assertThat(SwapiValues.idsFromUrls(mixedUrls)).containsExactly("2");
+	}
+
 }

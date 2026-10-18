@@ -22,6 +22,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
 class SwapiClientTest {
@@ -140,6 +142,90 @@ class SwapiClientTest {
 
 		assertThatThrownBy(() -> client.fetchById(SwapiResource.PEOPLE, SwapiPersonProperties.class, "1"))
 			.isInstanceOf(SwapiBadResponseException.class);
+	}
+
+	private static final String PAGE_URL = "/people?page=1&limit=10&expanded=true";
+
+	private static final String PERSON_WITHOUT_UID = "{\"properties\":{\"name\":\"Luke\"}}";
+
+	private static final String PERSON_WITHOUT_PROPERTIES = "{\"uid\":\"1\"}";
+
+	private void stubOk(String url, String body) {
+		wireMock.stubFor(get(urlEqualTo(url)).willReturn(
+				aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody(body)));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = { "{\"message\":\"ok\",\"results\":[]}",
+			"{\"message\":\"ok\",\"total_records\":1,\"results\":[]}",
+			"{\"message\":\"ok\",\"total_records\":1,\"total_pages\":1}",
+			"{\"message\":\"ok\",\"total_records\":1,\"total_pages\":1,\"results\":[{\"uid\":\"1\"}]}",
+			"{\"message\":\"ok\",\"total_records\":1,\"total_pages\":1,\"results\":[{\"properties\":{}}]}" })
+	void pageWithIncompleteEnvelopeOrItem_throwsBadResponse(String incompletePage) {
+		stubOk(PAGE_URL, incompletePage);
+
+		assertThatThrownBy(() -> client.fetchPage(SwapiResource.PEOPLE, SwapiPersonProperties.class, 1, 10))
+			.isInstanceOf(SwapiBadResponseException.class);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = { "{\"message\":\"ok\"}", "{\"message\":\"ok\",\"result\":null}" })
+	void listWithoutResult_throwsBadResponse(String listWithoutResult) {
+		stubOk("/films", listWithoutResult);
+
+		assertThatThrownBy(() -> client.fetchAll(SwapiResource.FILMS, SwapiPersonProperties.class))
+			.isInstanceOf(SwapiBadResponseException.class);
+	}
+
+	@Test
+	void listWithItemMissingUidOrProperties_throwsBadResponse() {
+		stubOk("/films", "{\"result\":[" + PERSON_WITHOUT_UID + "]}");
+		stubOk("/people?name=luke", "{\"result\":[" + PERSON_WITHOUT_PROPERTIES + "]}");
+
+		assertThatThrownBy(() -> client.fetchAll(SwapiResource.FILMS, SwapiPersonProperties.class))
+			.isInstanceOf(SwapiBadResponseException.class);
+		assertThatThrownBy(() -> client.search(SwapiResource.PEOPLE, SwapiPersonProperties.class, "luke"))
+			.isInstanceOf(SwapiBadResponseException.class);
+	}
+
+	@Test
+	void searchWithoutResult_throwsBadResponse() {
+		stubOk("/people?name=luke", "{\"message\":\"ok\"}");
+
+		assertThatThrownBy(() -> client.search(SwapiResource.PEOPLE, SwapiPersonProperties.class, "luke"))
+			.isInstanceOf(SwapiBadResponseException.class);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = { "{\"message\":\"ok\"}", "{\"message\":\"ok\",\"result\":null}",
+			"{\"result\":{\"uid\":\"1\"}}", "{\"result\":{\"properties\":{}}}" })
+	void detailWithoutUsableResult_throwsBadResponseInsteadOfEmpty(String unusableDetail) {
+		stubOk("/people/1", unusableDetail);
+
+		assertThatThrownBy(() -> client.fetchById(SwapiResource.PEOPLE, SwapiPersonProperties.class, "1"))
+			.isInstanceOf(SwapiBadResponseException.class);
+	}
+
+	@Test
+	void rateLimitResetBeyondTheQuotaWindow_isCappedToTheMaximumRetryAfter() {
+		long secondsUntilReset = SwapiFixtures.MAX_RETRY_AFTER.toSeconds() * 4;
+		wireMock.stubFor(get(urlEqualTo("/people/1")).willReturn(aResponse()
+			.withStatus(429)
+			.withHeader("x-ratelimit-reset", String.valueOf(NOW.getEpochSecond() + secondsUntilReset))));
+
+		assertThatThrownBy(() -> client.fetchById(SwapiResource.PEOPLE, SwapiPersonProperties.class, "1"))
+			.isInstanceOfSatisfying(SwapiRateLimitedException.class,
+					exception -> assertThat(exception.retryAfter()).isEqualTo(SwapiFixtures.MAX_RETRY_AFTER));
+	}
+
+	@Test
+	void rateLimitResetThatIsNotNumeric_fallsBackToTheDefaultRetryAfter() {
+		wireMock.stubFor(get(urlEqualTo("/people/1"))
+			.willReturn(aResponse().withStatus(429).withHeader("x-ratelimit-reset", "tomorrow")));
+
+		assertThatThrownBy(() -> client.fetchById(SwapiResource.PEOPLE, SwapiPersonProperties.class, "1"))
+			.isInstanceOfSatisfying(SwapiRateLimitedException.class,
+					exception -> assertThat(exception.retryAfter()).isEqualTo(SwapiFixtures.DEFAULT_RETRY_AFTER));
 	}
 
 }

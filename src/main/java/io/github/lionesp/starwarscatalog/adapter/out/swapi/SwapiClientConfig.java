@@ -20,7 +20,10 @@ public class SwapiClientConfig {
 	 */
 	@Bean
 	public RestClient swapiRestClient(SwapiProperties properties) {
-		HttpClient httpClient = HttpClient.newBuilder().connectTimeout(properties.connectTimeout()).build();
+		HttpClient httpClient = HttpClient.newBuilder()
+			.connectTimeout(properties.connectTimeout())
+			.followRedirects(HttpClient.Redirect.NORMAL)
+			.build();
 		JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
 		requestFactory.setReadTimeout(properties.readTimeout());
 		return RestClient.builder().baseUrl(properties.baseUrl()).requestFactory(requestFactory).build();

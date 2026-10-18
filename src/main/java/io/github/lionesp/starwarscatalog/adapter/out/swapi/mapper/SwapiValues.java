@@ -16,9 +16,9 @@ public final class SwapiValues {
 	/** Texts SWAPI uses for a missing value; they map to {@code null}. */
 	static final Set<String> UNKNOWN_TOKENS = Set.of("unknown", "n/a", "none", "");
 
-	private static final Pattern INTEGER = Pattern.compile("-?\\d+");
+	private static final Pattern INTEGER = Pattern.compile("-?(\\d+|\\d{1,3}(,\\d{3})+)");
 
-	private static final Pattern DECIMAL = Pattern.compile("-?\\d+(\\.\\d+)?");
+	private static final Pattern DECIMAL = Pattern.compile("-?(\\d+|\\d{1,3}(,\\d{3})+)(\\.\\d+)?");
 
 	private SwapiValues() {
 	}
@@ -31,7 +31,7 @@ public final class SwapiValues {
 		if (UNKNOWN_TOKENS.contains(trimmed.toLowerCase(Locale.ROOT))) {
 			return null;
 		}
-		return trimmed.replace(",", "");
+		return trimmed;
 	}
 
 	/**
@@ -46,7 +46,7 @@ public final class SwapiValues {
 			return null;
 		}
 		try {
-			return Long.valueOf(cleaned);
+			return Long.valueOf(cleaned.replace(",", ""));
 		}
 		catch (NumberFormatException overflow) {
 			return null;
@@ -64,7 +64,8 @@ public final class SwapiValues {
 		if (cleaned == null || !DECIMAL.matcher(cleaned).matches()) {
 			return null;
 		}
-		return Double.valueOf(cleaned);
+		double value = Double.parseDouble(cleaned.replace(",", ""));
+		return Double.isFinite(value) ? value : null;
 	}
 
 	/**
@@ -89,7 +90,7 @@ public final class SwapiValues {
 	 * Extracts the last path segment of a SWAPI URL.
 	 *
 	 * @param url resource URL
-	 * @return the id, or {@code null} if the URL is null or blank
+	 * @return the id, or {@code null} if the URL is null or blank or has no last segment
 	 */
 	public static String idFromUrl(String url) {
 		if (url == null || url.isBlank()) {
@@ -97,14 +98,15 @@ public final class SwapiValues {
 		}
 		String trimmed = url.trim();
 		String withoutTrailingSlash = trimmed.endsWith("/") ? trimmed.substring(0, trimmed.length() - 1) : trimmed;
-		return withoutTrailingSlash.substring(withoutTrailingSlash.lastIndexOf('/') + 1);
+		String id = withoutTrailingSlash.substring(withoutTrailingSlash.lastIndexOf('/') + 1);
+		return id.isBlank() ? null : id;
 	}
 
 	/**
 	 * Extracts the ids of a list of SWAPI URLs.
 	 *
 	 * @param urls resource URLs
-	 * @return the ids; empty if {@code urls} is null
+	 * @return the ids, leaving out the URLs without one; empty if {@code urls} is null
 	 */
 	public static List<String> idsFromUrls(List<String> urls) {
 		if (urls == null) {
