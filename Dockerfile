@@ -1,4 +1,5 @@
-FROM eclipse-temurin:21-jdk AS build
+# eclipse-temurin:21.0.12_8-jdk-noble
+FROM eclipse-temurin:21.0.12_8-jdk-noble@sha256:4d271cd5e0624598cf563342f47281b09cb364bc13acbbd7251f49f83470018d AS build
 WORKDIR /workspace
 COPY mvnw pom.xml ./
 COPY .mvn .mvn
@@ -8,7 +9,8 @@ COPY src src
 RUN ./mvnw -B -q package -DskipTests \
     && java -Djarmode=tools -jar target/starwars-catalog-api-*.jar extract --layers --launcher --destination /layers
 
-FROM eclipse-temurin:21-jre
+# eclipse-temurin:21.0.12_8-jre-noble
+FROM eclipse-temurin:21.0.12_8-jre-noble@sha256:7739f0ffce786528961eea6bf46d9610ee968ac6127c9b2e93494757bdecce9f
 RUN groupadd --system app && useradd --system --gid app --no-create-home app
 WORKDIR /app
 COPY --from=build --chown=app:app /layers/dependencies/ ./
@@ -17,6 +19,6 @@ COPY --from=build --chown=app:app /layers/snapshot-dependencies/ ./
 COPY --from=build --chown=app:app /layers/application/ ./
 USER app
 EXPOSE 8080
-# A 75% heap leaves ~128 MB of a 512 MB container for metaspace, threads and native buffers;
-# SerialGC and the C1-only compiler keep CPU and memory low on a 0.1 CPU free instance.
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-XX:+UseSerialGC", "-XX:TieredStopAtLevel=1", "-Xss512k", "org.springframework.boot.loader.launch.JarLauncher"]
+# A 65% heap leaves ~180 MB of 512 MB for metaspace, code cache and buffers; exiting on OOM lets the platform restart the container.
+# SerialGC and C1-only keep CPU and memory low on a 0.1 CPU free instance.
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=65", "-XX:+ExitOnOutOfMemoryError", "-XX:+UseSerialGC", "-XX:TieredStopAtLevel=1", "-Xss512k", "org.springframework.boot.loader.launch.JarLauncher"]

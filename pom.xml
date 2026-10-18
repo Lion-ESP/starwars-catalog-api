@@ -12,7 +12,7 @@
 	<artifactId>starwars-catalog-api</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>starwars-catalog-api</name>
-	<description>API REST de catalogo Star Wars sobre swapi.tech</description>
+	<description>API REST de catálogo Star Wars sobre swapi.tech</description>
 	<properties>
 		<java.version>21</java.version>
 		<resilience4j.version>2.4.0</resilience4j.version>
