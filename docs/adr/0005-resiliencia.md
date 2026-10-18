@@ -9,8 +9,10 @@ SWAPI es un servicio gratuito de terceros: puede responder 5xx, demorarse, recha
 - **Orden caché → circuit breaker → retry → llamada HTTP.** Un hit de caché no llega al breaker; una secuencia de reintentos cuenta como una sola llamada. Resilience4j se usa de forma programática (sin AOP).
 - **Se reintenta** (3 intentos, espera de 200 ms con backoff exponencial): respuestas 5xx y fallas de conexión.
 - **No se reintenta:** timeout de lectura (ya consumió 5 s y reintentar multiplica la espera), 404 (es una respuesta válida), 429 (reintentar empeora el cupo) y respuestas inválidas (volver a pedir no las arregla).
-- **Circuit breaker** con ventana de 10 llamadas, mínimo 5 y umbral del 50 %, abierto 30 s. Registra 5xx, timeouts, fallas de conexión y respuestas inválidas; ignora 404 y 429.
+- **Circuit breaker** con ventana de 10 llamadas, mínimo 5 y umbral del 50 %, abierto 30 s. Registra 5xx, timeouts, fallas de conexión y respuestas inválidas (`record-exceptions`). El 404 no es una excepción (se traduce a respuesta vacía). El 429 va en `ignore-exceptions`: con `record-exceptions` definido, Resilience4j cuenta como éxito toda excepción no listada, así que dejarlo afuera sin más lo contaría como una llamada exitosa; en `ignore-exceptions` no cuenta ni como fallo ni como éxito, y el cupo agotado de SWAPI no abre el circuito ni lo mantiene cerrado artificialmente.
 - **502 vs 503:** `502 Bad Gateway` cuando SWAPI falla de forma persistente (5xx) o responde algo inesperado; `503 Service Unavailable` con `Retry-After` cuando está temporalmente inutilizable (timeout, conexión, cupo, circuito abierto). El valor sale del header `x-ratelimit-reset`, de la espera del breaker o del default configurado (30 s).
+- **`Retry-After` con el breaker abierto:** informa la espera configurada completa (`wait-duration-in-open-state`), sin descontar lo que ya pasó. Es una cota superior segura y evita llevar la cuenta del instante de apertura; un cliente que espere ese tiempo no vuelve a pegar contra un circuito abierto.
+- **Tope del 429:** el `Retry-After` calculado desde `x-ratelimit-reset` se acota con `swapi.max-retry-after` (15 min, la ventana de cupo de SWAPI), para que un header absurdo no le pida al cliente esperas desmedidas.
 
 ## Alternativas consideradas
 - **Retry por fuera del breaker o breaker por fuera de la caché:** los hits contarían como llamadas y los reintentos inflarían el conteo de fallas.
@@ -19,5 +21,6 @@ SWAPI es un servicio gratuito de terceros: puede responder 5xx, demorarse, recha
 
 ## Consecuencias
 - La API falla rápido y de forma explicable, con `Retry-After` accionable.
+- Con el breaker abierto, `Retry-After` puede sobreestimar la espera real (cota superior, decisión consciente).
 - Con el breaker abierto, las consultas no cacheadas devuelven 503 aunque SWAPI ya se haya recuperado hasta la próxima ventana semiabierta.
 - Los parámetros son configurables, pero un ajuste malo puede abrir el circuito de más o tardar en abrirlo.

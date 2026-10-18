@@ -10,9 +10,9 @@ API REST en Java 21 y Spring Boot 4 que expone el catálogo de personajes, pelí
 export BASE_URL=RENDER_URL
 ```
 
-> **Arranque en frío.** La API corre en el plan gratuito de Render: se duerme a los 15 minutos sin tráfico y el primer request tarda alrededor de un minuto en despertarla. Conviene pegarle primero a `$BASE_URL/actuator/health` y esperar el `200`.
+> **Arranque en frío.** La API corre en el plan gratuito de Render: se duerme a los 15 minutos sin tráfico y el primer request tarda alrededor de un minuto en despertarla. Pegale primero a `$BASE_URL/actuator/health` y esperá el `200`.
 
-Usuarios de demostración (públicos a propósito, para que cualquiera pueda probar):
+Usuarios de demostración (públicos a propósito, para que cualquiera pueda probar; ver [Usuarios demo en producción](#usuarios-demo-en-producción)):
 
 | Usuario | Contraseña | Roles |
 |---|---|---|
@@ -33,12 +33,46 @@ Listado de personajes:
 curl -s "$BASE_URL/api/v1/people?page=1&size=3" -H "Authorization: Bearer $TOKEN"
 ```
 
+Filtro por nombre (coincidencia parcial, sin distinguir mayúsculas), por id y por título de película:
+
+```bash
+curl -s "$BASE_URL/api/v1/people?name=luke" -H "Authorization: Bearer $TOKEN"
+curl -s "$BASE_URL/api/v1/people?id=1" -H "Authorization: Bearer $TOKEN"
+curl -s "$BASE_URL/api/v1/films?name=hope" -H "Authorization: Bearer $TOKEN"
+```
+
+Detalle de un personaje (`404` si no existe):
+
+```bash
+curl -s "$BASE_URL/api/v1/people/1" -H "Authorization: Bearer $TOKEN"
+```
+
 - Swagger UI: `$BASE_URL/swagger-ui.html` (botón **Authorize** con el token del login).
 - Colección de Bruno con el recorrido completo: [`bruno/`](bruno) (ver [Tests y calidad](#tests-y-calidad)).
 
+## Cumplimiento del enunciado
+
+Cada requisito de [`CHALLENGE.md`](CHALLENGE.md), dónde se resuelve y cómo se prueba. La especificación con todos los escenarios está en [`docs/spec.md`](docs/spec.md).
+
+| Requisito | Dónde se resuelve | Cómo se prueba |
+|---|---|---|
+| 1. Integración con la API de Star Wars | `adapter/out/swapi`: `SwapiClient` (`RestClient`, timeouts, caché, resiliencia), `SwapiCatalogAdapter` y los mappers | `SwapiClientTest` y `SwapiCatalogAdapterTest` contra WireMock; `CatalogEndToEndTest` con la app completa |
+| 2. Listado paginado de People, Films, Starships y Vehicles | `PeopleController`, `FilmsController`, `StarshipsController` y `VehiclesController`; paginación en `domain/page` | `*ControllerTest`, `InMemoryPaginatorTest`, `PageQueryTest` y `CatalogEndToEndTest`. A mano: `GET /api/v1/people?page=2&size=10` |
+| 3. Filtrado por id y/o nombre | `CatalogFilter` (dominio) y `CatalogService`; parámetros `id` y `name` en los cuatro recursos | `CatalogFilterTest`, `CatalogServiceTest`, `SwapiCatalogAdapterTest`. A mano: los `curl` de [Probalo en 2 minutos](#probalo-en-2-minutos) |
+| 4. Autenticación y autorización | Paquete `security`: login con JWT (`LoginService`, `TokenService`), roles `USER` y `ADMIN` en `SecurityConfig` | `AuthControllerTest`, `TokenServiceTest`, `LoginServiceTest`, `JwtSecretValidationTest`, `ProblemDetailsRealServerTest`. A mano: un `401` sin token y un `403` de `USER` en `DELETE /api/v1/admin/cache` |
+| 5. Documentación de uso y de código | Este README, [`docs/spec.md`](docs/spec.md), los [ADR](docs/adr/README.md), Swagger UI y Javadoc en el código público | `./mvnw javadoc:javadoc` y Swagger UI en `/swagger-ui.html`. Un clone limpio se levanta siguiendo [Correr localmente](#correr-localmente) |
+| 6. Pruebas unitarias y de integración | `src/test`: ver [Tests y calidad](#tests-y-calidad) | `./mvnw verify` (más de 300 tests y el piso de cobertura) |
+| 7. Despliegue | `Dockerfile`, `render.yaml` (Render, plan gratuito) y CI en `.github/workflows/ci.yml` | El job `docker` del CI construye la imagen y consulta `/actuator/health`. A mano: la URL de [Probalo en 2 minutos](#probalo-en-2-minutos) |
+| Restricción: Java 21 y Spring Boot | `pom.xml`: Java 21 y Spring Boot 4.1 | El enforcer corta el build con otro JDK |
+
 ## Correr localmente
 
-Requisitos: Docker, o Java 21 (el wrapper de Maven viene incluido). Sin `JWT_SECRET` la aplicación no arranca a propósito.
+Requisitos, según cómo lo corras:
+
+- **Docker (Compose):** no necesita nada más; el JDK está dentro de la imagen.
+- **Maven (`./mvnw`):** necesita **Java 21** instalado (`java -version` tiene que informar 21). El wrapper evita instalar Maven, no el JDK: con otro JDK el build se corta con un mensaje del enforcer.
+
+Sin `JWT_SECRET` la aplicación no arranca a propósito.
 
 Con Docker Compose:
 
@@ -47,7 +81,7 @@ export JWT_SECRET=$(openssl rand -base64 48)
 docker compose up --build
 ```
 
-Con Maven:
+Con Maven (Java 21):
 
 ```bash
 export JWT_SECRET=$(openssl rand -base64 48)
@@ -121,12 +155,18 @@ Los atributos numéricos de SWAPI (que llegan como texto) se exponen como númer
 
 | Estado | Cuándo |
 |---|---|
-| `400` | Parámetro inválido (`page`, `size`, `id`) o cuerpo de login inválido; nombra el parámetro o campo |
-| `401` | Sin token, token inválido o vencido, o credenciales incorrectas |
+| `400` | Parámetro inválido (`page`, `size`, `id`, `name` de más de 100 caracteres), cuerpo de login inválido o JSON malformado; nombra el parámetro o campo cuando corresponde |
+| `401` | Sin token, token inválido o vencido, o credenciales incorrectas; siempre con `WWW-Authenticate: Bearer` |
 | `403` | Token válido sin el rol necesario |
-| `404` | Detalle de un id inexistente |
+| `404` | Detalle de un id inexistente o ruta inexistente |
+| `405` | Método no soportado; incluye el header `Allow` |
+| `500` | Error inesperado; respuesta genérica, sin detalles internos |
 | `502` | SWAPI respondió 5xx de forma persistente o una respuesta inesperada |
 | `503` | SWAPI no disponible (timeout, conexión, cupo agotado o circuito abierto); incluye `Retry-After` en segundos |
+
+Los `502` y `503` se loguean con el `requestId` (el mismo `X-Request-Id` de la respuesta), igual que los `500`.
+
+**Límites de tamaño.** `name` admite hasta 100 caracteres; `username` y `password` del login, hasta 72 (el máximo que BCrypt procesa). Por encima de eso la respuesta es `400`.
 
 ```json
 {
@@ -149,15 +189,29 @@ Las propiedades viven en `src/main/resources/application.yml` y se pueden sobres
 | `SPRING_PROFILES_ACTIVE` | vacío | Con `prod`, los logs salen en JSON con formato ECS |
 | `app.security.jwt.issuer` | `starwars-catalog-api` | Claim `iss` de los tokens |
 | `app.security.jwt.expiration` | `1h` | Vigencia del token (`expiresIn` en segundos) |
-| `app.security.users` | `user` y `admin` | Usuarios con `username`, `password-hash` (BCrypt) y `roles`; sobrescribibles por configuración |
+| `app.security.users` | `user` y `admin` | Usuarios con `username`, `password-hash` (BCrypt) y `roles`; ver [Usuarios demo en producción](#usuarios-demo-en-producción) |
 | `swapi.base-url` | `https://www.swapi.tech/api` | URL base de SWAPI |
 | `swapi.connect-timeout` | `2s` | Timeout de conexión |
 | `swapi.read-timeout` | `5s` | Timeout de lectura |
 | `swapi.default-retry-after` | `30s` | `Retry-After` cuando SWAPI no informa cuándo reintentar |
 | `spring.cache.caffeine.spec` | `maximumSize=500,expireAfterWrite=1h,recordStats` | Tamaño y TTL de la caché |
 | `resilience4j.retry.instances.swapi` | 3 intentos, espera de `200ms` con backoff exponencial (x2) | Reintentos: solo 5xx y fallas de conexión |
-| `resilience4j.circuitbreaker.instances.swapi` | ventana de 10 llamadas, mínimo 5, umbral 50 %, abierto `30s`, 3 llamadas en semiabierto | Circuit breaker |
+| `swapi.max-retry-after` | `15m` | Tope del `Retry-After` calculado desde `x-ratelimit-reset` de SWAPI |
+| `resilience4j.circuitbreaker.instances.swapi` | ventana de 10 llamadas, mínimo 5, umbral 50 %, abierto `30s`, 3 llamadas en semiabierto | Circuit breaker: cuenta 5xx, timeouts, fallas de conexión y respuestas inválidas; el `429` no cuenta |
 | `springdoc.swagger-ui.path` | `/swagger-ui.html` | Ruta de Swagger UI |
+
+### Usuarios demo en producción
+
+Los usuarios `user` y `admin` están activos también en la instancia desplegada. Es una decisión consciente: quien revisa la API tiene que poder probar la autorización (un `403` de `USER`, el vaciado de caché y las métricas de `ADMIN`) en la URL pública. Lo peor que permite `admin` es vaciar la caché y ver métricas. En un uso real se reemplazan por configuración, incluso con variables de entorno (binding relajado de Spring; el hash es BCrypt):
+
+```bash
+export APP_SECURITY_USERS_0_USERNAME=ops
+export APP_SECURITY_USERS_0_PASSWORDHASH='<hash BCrypt>'
+export APP_SECURITY_USERS_0_ROLES_0=USER
+export APP_SECURITY_USERS_0_ROLES_1=ADMIN
+```
+
+Una lista definida por entorno reemplaza a la del `application.yml` completa, así que los usuarios demo dejan de existir. Ver el [ADR 0004](docs/adr/0004-autenticacion-jwt.md).
 
 ## Tests y calidad
 
@@ -165,7 +219,7 @@ Las propiedades viven en `src/main/resources/application.yml` y se pueden sobres
 ./mvnw verify
 ```
 
-Corre toda la suite y el chequeo de cobertura. Ningún test le pega a SWAPI: todos usan fakes o WireMock.
+Corre toda la suite (más de 300 tests) y el chequeo de cobertura. Requiere Java 21. Ningún test le pega a SWAPI: todos usan fakes o WireMock.
 
 | Nivel | Qué cubre |
 |---|---|
@@ -173,9 +227,9 @@ Corre toda la suite y el chequeo de cobertura. Ningún test le pega a SWAPI: tod
 | Integración del cliente | `SwapiClient` y adaptador contra WireMock: mapeo, timeouts, reintentos, circuit breaker y caché (incluida la concurrencia sobre una misma consulta) |
 | Capa web | Controllers con MockMvc y la seguridad real (login, roles, tokens inválidos, Problem Details) |
 | Punta a punta | La aplicación completa contra WireMock: login, listados, caché, Actuator y Swagger |
-| Arquitectura | Reglas de ArchUnit: `domain` y `application` no dependen de Spring ni de `adapter` |
+| Arquitectura | 5 reglas de ArchUnit sobre las dependencias entre paquetes (ver [Arquitectura](#arquitectura)) |
 
-**Cobertura.** JaCoCo exige un piso del 80 % de líneas en `domain` y `application`, y el build falla si no se cumple. Hoy esos paquetes están al 100 % y el proyecto completo al 98,2 %. El reporte queda en `target/site/jacoco/index.html`.
+**Cobertura.** JaCoCo exige, por paquete de `domain*` y `application*`, al menos 80 % de líneas y 70 % de ramas, y el build falla si no se cumple. Hoy `domain` y `application` tienen 100 % de líneas, y el proyecto completo está alrededor de 98 % de líneas y 92 % de ramas. El reporte queda en `target/site/jacoco/index.html` y el CI lo publica como artifact.
 
 **Colección de Bruno.** En [`bruno/`](bruno) hay 21 requests que recorren login, listados, filtros, detalle, errores, administración y operación. Contra una API corriendo en local:
 
@@ -188,7 +242,7 @@ Algunos asserts dependen de los datos actuales de SWAPI (por ejemplo, totales de
 
 ## Arquitectura
 
-Ports and adapters solo en el borde con SWAPI: el dominio y los casos de uso no conocen frameworks ni HTTP.
+Arquitectura hexagonal acotada al borde con SWAPI: `application` define puertos de salida (`application/port/out`) que implementa `adapter/out`, y no hay puertos de entrada (los controllers llaman directo a los casos de uso). El dominio y los casos de uso no conocen frameworks ni HTTP.
 
 ```mermaid
 flowchart LR
@@ -223,18 +277,28 @@ flowchart LR
     Adaptador -.->|usa| Dominio
 ```
 
-Por qué así: la única integración externa con comportamiento propio es SWAPI (formatos irregulares, paginación inconsistente, cupo de requests, caídas). Aislarla detrás de un puerto permite testear los casos de uso con un fake y reemplazar el origen de datos sin tocar la lógica. No tiene sentido llevar una arquitectura hexagonal completa a un servicio de lectura sin persistencia propia ni lógica de negocio compleja, ni capas clásicas que acoplarían el dominio al transporte. Ver [ADR 0002](docs/adr/0002-arquitectura.md).
+Por qué así: la única integración externa con comportamiento propio es SWAPI (formatos irregulares, paginación inconsistente, cupo de requests, caídas). Aislarla detrás de puertos permite testear los casos de uso con un fake y reemplazar el origen de datos sin tocar la lógica. Los puertos incluyen sus excepciones (`CatalogUnavailableException` y `CatalogUpstreamException`, que las `Swapi*Exception` extienden), de modo que la capa web traduce errores sin conocer a SWAPI.
+
+Cinco reglas de ArchUnit (`ArchitectureTest`) hacen cumplir la estructura en cada build:
+
+1. `domain` no depende de Spring, Jackson, `adapter` ni `application`.
+2. `application` no depende de Spring, Jackson ni `adapter`.
+3. `domain` y `application` no dependen de Jakarta, Resilience4j, Caffeine, `security` ni `config`.
+4. `adapter.in` no depende de `adapter.out`.
+5. `adapter.out` no depende de `adapter.in` ni de `security`.
+
+Ver [ADR 0002](docs/adr/0002-arquitectura.md).
 
 ```
 io.github.lionesp.starwarscatalog
 ├── domain          entidades (records), PageQuery, Page, CatalogFilter, paginación en memoria
-├── application     CatalogService, CacheAdminService y puertos de salida (CatalogPort, CatalogCache)
+├── application     CatalogService, CacheAdminService y puertos de salida (CatalogPort, CatalogCache) con sus excepciones
 ├── adapter
 │   ├── in/rest     controllers, DTO de la API, manejo de errores, filtro de correlación
 │   └── out
 │       ├── swapi   SwapiClient, SwapiResilience, SwapiCatalogAdapter, DTO y mappers
 │       └── cache   CaffeineCatalogCache
-├── security        cadenas de Spring Security, emisión de JWT, usuarios
+├── security        cadenas de Spring Security, login (`LoginService`), emisión de JWT, usuarios
 └── config          composición de beans, caché y OpenAPI
 ```
 
@@ -272,12 +336,12 @@ sequenceDiagram
 | Decisión | ADR |
 |---|---|
 | Java 21, Spring Boot 4.1, Maven, virtual threads y `RestClient` | [0001](docs/adr/0001-stack.md) |
-| Ports and adapters en el borde con SWAPI | [0002](docs/adr/0002-arquitectura.md) |
+| Hexagonal acotada al borde con SWAPI, con reglas de ArchUnit | [0002](docs/adr/0002-arquitectura.md) |
 | Proxy con caché en lugar de snapshot en memoria | [0003](docs/adr/0003-proxy-con-cache.md) |
-| JWT HS256 con Spring Security y usuarios predefinidos | [0004](docs/adr/0004-autenticacion-jwt.md) |
+| JWT HS256 con Spring Security; usuarios demo también en producción | [0004](docs/adr/0004-autenticacion-jwt.md) |
 | Orden caché, circuit breaker y retry; 502 vs 503 | [0005](docs/adr/0005-resiliencia.md) |
 | Números tipados, desconocidos a `null`, relaciones como ids | [0006](docs/adr/0006-tipado-de-datos.md) |
-| Deploy en Render con Docker | [0007](docs/adr/0007-deploy-en-render.md) |
+| Deploy en Render con Docker; arranque y memoria | [0007](docs/adr/0007-deploy-en-render.md) |
 
 Trampas de SWAPI que el diseño resuelve:
 
@@ -294,7 +358,7 @@ Trampas de SWAPI que el diseño resuelve:
 - Los datos de SWAPI cambian poco: un TTL de 1 hora es aceptable y las ediciones del origen pueden tardar hasta ese tiempo en reflejarse (o hasta vaciar la caché).
 - Un valor numérico que no se puede interpretar se expone como `null`; nunca hace fallar el request.
 - `page` no tiene máximo: una página más allá del final devuelve una página vacía con los totales.
-- Las credenciales demo son públicas a propósito. El secreto JWT nunca está en el repositorio.
+- Las credenciales demo son públicas a propósito y siguen activas en producción (ver [Usuarios demo en producción](#usuarios-demo-en-producción)). El secreto JWT nunca está en el repositorio.
 
 ## Trade-offs y qué haría con más tiempo
 
@@ -304,15 +368,17 @@ Trampas de SWAPI que el diseño resuelve:
 - **Expandir relaciones.** Las relaciones se exponen solo como ids; sería natural ofrecer un parámetro de expansión.
 - **Contract tests contra SWAPI.** Los tests usan WireMock con fixtures; un chequeo periódico contra el servicio real detectaría cambios de formato.
 - **Tracing distribuido.** Hay un id de correlación en logs, pero no trazas entre servicios.
+- **Pinning de virtual threads con `sync = true`.** `@Cacheable(sync = true)` carga el valor dentro de un `synchronized`, y en Java 21 eso fija el hilo portador de un virtual thread mientras espera a SWAPI. Con cuatro recursos y un cupo de 100 requests el riesgo es bajo; si creciera, lo resolvería con una caché asíncrona. Ver [ADR 0003](docs/adr/0003-proxy-con-cache.md).
+- **`Retry-After` como cota superior con el breaker abierto.** Informa la espera configurada completa (30 s), aunque el breaker pueda pasar a semiabierto antes: es una cota segura y evita calcular el tiempo restante. Ver [ADR 0005](docs/adr/0005-resiliencia.md).
 - **Persistencia propia.** No guardo datos de SWAPI; es una elección de simplicidad, a costa de depender de su disponibilidad (mitigada con caché y resiliencia).
 
 ## Uso de IA
 
 Desarrollé el proyecto con asistencia de Claude Code (los commits lo indican con `Co-Authored-By`). La usé dentro de un proceso con control propio en cada paso:
 
-- **Spec primero.** Antes de escribir código fijé el contrato de la API y los escenarios verificables (entrada → salida esperada), incluidas las trampas de SWAPI que verifiqué con `curl`. Una revisión crítica de esa spec, antes de implementar, encontró casos que había pasado por alto (por ejemplo, que un token vencido no debía bloquear el login).
-- **Tareas chicas con test-first.** Cada tarea partió de los tests de sus escenarios, primero en rojo y después en verde, y terminó en un commit propio.
-- **Revisión de cada diff.** Corrí la verificación de cada tarea por mi cuenta y rechacé o pedí corregir lo que no cumplía: código de producción que existía solo para los tests, configuraciones de test que se colaban en el contexto completo, imports con comodín.
+- **[Spec primero](docs/spec.md).** Antes de escribir código fijé el contrato de la API y los escenarios verificables (entrada → salida esperada), incluidas las trampas de SWAPI que verifiqué con `curl`. Esa especificación está publicada y cada escenario tiene al menos un test. La revisé críticamente antes de implementar y después, lo que sumó casos que había pasado por alto (por ejemplo, que un token vencido no debía bloquear el login).
+- **Tests guiados por los escenarios.** Los escenarios de la spec definieron qué probar en cada capa, y los tests corren en cada `./mvnw verify`.
+- **Revisión de cada diff.** Corrí la verificación por mi cuenta y rechacé o pedí corregir lo que no cumplía: código de producción que existía solo para los tests, configuraciones de test que se colaban en el contexto completo, imports con comodín.
 - **Decisiones propias.** Las decisiones de diseño y sus alternativas están en los [ADR](docs/adr/README.md), y puedo defender cada una.
 
 ## Convenciones del repo

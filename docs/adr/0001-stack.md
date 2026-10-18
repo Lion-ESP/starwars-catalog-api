@@ -6,7 +6,7 @@
 Hay que construir una API REST en Java 21 con Spring Boot que consume una API externa (swapi.tech). Casi todo el tiempo de un request se va esperando I/O de SWAPI, y el servicio se despliega en un plan gratuito de 512 MB de RAM.
 
 ## Decisión
-- Java 21, Spring Boot 4.1 y Maven con wrapper (`./mvnw`), de modo que el build no depende de nada instalado.
+- Java 21, Spring Boot 4.1 y Maven con wrapper (`./mvnw`), de modo que no hace falta instalar Maven. El wrapper no instala el JDK: Maven necesita Java 21 (el `maven-enforcer-plugin` corta el build con otro JDK). Con Docker no hace falta nada instalado, porque el JDK está en la imagen.
 - Servidor MVC (bloqueante) con **virtual threads** (`spring.threads.virtual.enabled=true`): el código se escribe de forma secuencial y cada request en espera de SWAPI no ocupa un thread de plataforma.
 - **`RestClient`** con el cliente HTTP del JDK y timeouts de conexión y lectura configurables.
 
@@ -16,5 +16,5 @@ Hay que construir una API REST en Java 21 con Spring Boot que consume una API ex
 - **Pool de threads de plataforma:** exigiría dimensionarlo, y en 512 MB un pool grande es un costo.
 
 ## Consecuencias
-- Código simple, bloqueante y fácil de testear; el consumo de memoria se mantiene bajo (la imagen usa unos 171 MiB bajo un límite de 512 MB).
+- Código simple, bloqueante y fácil de testear; el consumo de memoria se mantiene bajo (el contenedor usa alrededor de 160 MiB en reposo bajo un límite de 512 MB).
 - Se depende de Spring Boot 4, reciente: algunas librerías (por ejemplo WireMock) se usan en variantes compatibles, y Jackson 3 cambia paquetes respecto de versiones anteriores.
