@@ -7,7 +7,8 @@ El enunciado pide la API desplegada en un servidor gratuito para que el revisor 
 
 ## Decisión
 - **Render con el plan gratuito, desplegando desde el `Dockerfile`** (multi-stage, usuario no root) mediante el blueprint `render.yaml`: genera `JWT_SECRET`, activa el perfil `prod` (logs ECS) y usa `/actuator/health` como health check.
-- Ajustes de JVM para 512 MB y 0,1 CPU: `-XX:MaxRAMPercentage=65`, `-XX:+ExitOnOutOfMemoryError` (para que la plataforma reinicie el contenedor), `-XX:+UseSerialGC`, `-XX:TieredStopAtLevel=1` y `-Xss512k`. Medido localmente con `--memory 512m`, el contenedor usa alrededor de 160 MiB en reposo y arranca en unos 2 s con CPU completa y en unos 45 s limitado a 0,1 CPU (la fracción del plan gratuito); el health tarda unos 50 s en responder.
+- Ajustes de JVM para 512 MB y 0,1 CPU: `-XX:MaxRAMPercentage=65`, `-XX:+ExitOnOutOfMemoryError` (para que la plataforma reinicie el contenedor), `-XX:+UseSerialGC`, `-XX:TieredStopAtLevel=1` y `-Xss512k`.
+- CDS (Class Data Sharing): el build hace una corrida de entrenamiento que levanta el contexto una vez y archiva las clases cargadas (`app.jsa`), y la JVM lo reusa al arrancar. Medido localmente con `--memory 512m` y limitado a 0,1 CPU (la fracción del plan gratuito), el arranque bajó de unos 40 s a unos 25 s; con CPU completa tarda alrededor de 2 s. El contenedor usa alrededor de 150 MiB en reposo. El costo es una imagen unos 60 MB más grande.
 
 ## Alternativas consideradas
 - **Heroku:** el enunciado lo sugiere, pero al momento de decidir no encontré un plan gratuito.
@@ -17,7 +18,7 @@ El enunciado pide la API desplegada en un servidor gratuito para que el revisor 
 
 ## Consecuencias
 - Despliegue reproducible y sin costo, con un blueprint versionado.
-- **Arranque en frío:** el servicio se duerme a los 15 minutos sin tráfico y el primer request tarda alrededor de un minuto (el arranque con 0,1 CPU es de unos 45 s); el README lo advierte.
+- **Arranque en frío:** el servicio se duerme a los 15 minutos sin tráfico y el primer request tarda hasta un minuto entre que Render levanta el contenedor y la app arranca (unos 25 s con CDS); el README lo advierte. Durante la ventana de evaluación, un monitor externo consulta `/actuator/health` cada 10 minutos para que la instancia no se duerma: las 750 horas mensuales del plan alcanzan para un servicio prendido todo el mes.
 - El `Dockerfile` no define `HEALTHCHECK`: el chequeo de salud lo hacen Render (`healthCheckPath`) y el smoke del CI contra `/actuator/health`.
 - Recursos limitados (512 MB y 0,1 CPU): sin margen para cargas altas, aceptable para una demo.
 - Swagger queda habilitado en `prod` a propósito, porque es la forma en que el revisor prueba la API.

@@ -16,5 +16,5 @@ Hay que construir una API REST en Java 21 con Spring Boot que consume una API ex
 - **Pool de threads de plataforma:** exigiría dimensionarlo, y en 512 MB un pool grande es un costo.
 
 ## Consecuencias
-- Código simple, bloqueante y fácil de testear; el consumo de memoria se mantiene bajo (el contenedor usa alrededor de 160 MiB en reposo bajo un límite de 512 MB).
+- Código simple, bloqueante y fácil de testear; el consumo de memoria se mantiene bajo (el contenedor usa alrededor de 150 MiB en reposo bajo un límite de 512 MB).
 - Se depende de Spring Boot 4, reciente: algunas librerías (por ejemplo WireMock) se usan en variantes compatibles, y Jackson 3 cambia paquetes respecto de versiones anteriores.
