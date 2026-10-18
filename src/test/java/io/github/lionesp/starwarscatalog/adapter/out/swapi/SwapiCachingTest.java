@@ -5,19 +5,18 @@ import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
-import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import io.github.lionesp.starwarscatalog.adapter.out.cache.CaffeineCatalogCache;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.dto.SwapiItem;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.dto.SwapiPersonProperties;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.exception.SwapiBadResponseException;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.exception.SwapiServerErrorException;
-import io.github.lionesp.starwarscatalog.domain.model.Person;
-import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.mapper.PersonMapper;
+import io.github.lionesp.starwarscatalog.domain.model.Person;
+import io.github.lionesp.testsupport.SwapiResilienceTestApplication;
+import io.github.lionesp.testsupport.SwapiWireMockSupport;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -25,48 +24,18 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.RegisterExtension;
-import io.github.lionesp.testsupport.SwapiResilienceTestApplication;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.cache.CacheManager;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 
-@SpringBootTest(classes = SwapiResilienceTestApplication.class, properties = {
-		"resilience4j.retry.instances.swapi.wait-duration=10ms" })
-class SwapiCachingTest {
-
-	@RegisterExtension
-	static WireMockExtension wireMock = WireMockExtension.newInstance()
-		.options(wireMockConfig().dynamicPort())
-		.build();
-
-	@DynamicPropertySource
-	static void swapiBaseUrl(DynamicPropertyRegistry registry) {
-		registry.add("swapi.base-url", wireMock::baseUrl);
-	}
+@SpringBootTest(classes = SwapiResilienceTestApplication.class)
+class SwapiCachingTest extends SwapiWireMockSupport {
 
 	@Autowired
 	private SwapiClient client;
 
 	@Autowired
-	private CacheManager cacheManager;
-
-	@Autowired
-	private CircuitBreakerRegistry circuitBreakerRegistry;
-
-	@Autowired
 	private CaffeineCatalogCache catalogCache;
-
-	@BeforeEach
-	void resetState() {
-		wireMock.resetAll();
-		cacheManager.getCache(SwapiClient.CACHE_NAME).clear();
-		circuitBreakerRegistry.circuitBreaker("swapi").reset();
-	}
 
 	private void stubPerson(String id, int delayMillis) {
 		String body = SwapiFixtures.detail(SwapiFixtures.firstItem("people-page"));
@@ -81,7 +50,7 @@ class SwapiCachingTest {
 	}
 
 	@Test
-	void E32_sameQueryWithinTtl_callsSwapiOnce() {
+	void sameQueryWithinTtlCallsSwapiOnce() {
 		stubPerson("1", 0);
 
 		var firstResult = fetchPerson("1");
@@ -92,7 +61,7 @@ class SwapiCachingTest {
 	}
 
 	@Test
-	void E32_differentIds_areCachedSeparately() {
+	void differentIdsAreCachedSeparately() {
 		stubPerson("1", 0);
 		stubPerson("2", 0);
 
@@ -104,7 +73,7 @@ class SwapiCachingTest {
 	}
 
 	@Test
-	void E49_notFoundTwiceWithinTtl_callsSwapiOnceAndReturnsEmptyBothTimes() {
+	void notFoundTwiceWithinTtlCallsSwapiOnceAndReturnsEmptyBothTimes() {
 		wireMock.stubFor(get(urlEqualTo("/people/9999")).willReturn(aResponse().withStatus(404)));
 
 		var firstResult = fetchPerson("9999");
@@ -116,7 +85,7 @@ class SwapiCachingTest {
 	}
 
 	@Test
-	void E50_concurrentIdenticalCallsOnEmptyCache_callSwapiOnce() throws ExecutionException, InterruptedException {
+	void concurrentIdenticalCallsOnEmptyCacheCallSwapiOnce() throws ExecutionException, InterruptedException {
 		stubPerson("1", 500);
 		int concurrentCallers = 8;
 		List<Future<Optional<SwapiItem<SwapiPersonProperties>>>> futures = new ArrayList<>();
@@ -134,7 +103,7 @@ class SwapiCachingTest {
 	}
 
 	@Test
-	void failures_areNeverCached() {
+	void failuresAreNeverCached() {
 		wireMock.stubFor(get(urlEqualTo("/people/1")).willReturn(aResponse().withStatus(503)));
 
 		assertThatThrownBy(() -> fetchPerson("1")).isInstanceOf(SwapiServerErrorException.class);
@@ -144,7 +113,7 @@ class SwapiCachingTest {
 	}
 
 	@Test
-	void E8_evictAll_makesTheRepeatedQueryCallSwapiAgain() {
+	void evictAllMakesTheRepeatedQueryCallSwapiAgain() {
 		stubPerson("1", 0);
 		fetchPerson("1");
 
@@ -155,8 +124,8 @@ class SwapiCachingTest {
 	}
 
 	@Test
-	void searchesThatDifferOnlyInCase_shareOneCacheEntry() {
-		String body = SwapiFixtures.list(SwapiFixtures.firstItem("people-page"), 1, null);
+	void searchesThatDifferOnlyInCaseShareOneCacheEntry() {
+		String body = SwapiFixtures.list(SwapiFixtures.firstItem("people-page"), 1, "name", null);
 		wireMock.stubFor(get(urlPathEqualTo("/people")).willReturn(
 				aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody(body)));
 		SwapiCatalogAdapter<SwapiPersonProperties, Person> adapter = new SwapiCatalogAdapter<>(SwapiResource.PEOPLE,
@@ -170,7 +139,7 @@ class SwapiCachingTest {
 	}
 
 	@Test
-	void incompleteEnvelope_isNotCached() {
+	void incompleteEnvelopeIsNotCached() {
 		wireMock.stubFor(get(urlEqualTo("/people/1")).willReturn(aResponse().withStatus(200)
 			.withHeader("Content-Type", "application/json")
 			.withBody("{\"message\":\"ok\",\"result\":null}")));

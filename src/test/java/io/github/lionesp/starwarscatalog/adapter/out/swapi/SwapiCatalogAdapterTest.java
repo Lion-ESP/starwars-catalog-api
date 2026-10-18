@@ -57,7 +57,7 @@ class SwapiCatalogAdapterTest {
 	}
 
 	@Test
-	void E10_secondPageOfPeople_callsSwapiOnceAndReturnsItsTotals() {
+	void secondPageOfPeopleCallsSwapiOnceAndReturnsItsTotals() {
 		JsonNode personItem = SwapiFixtures.firstItem("people-page");
 		stubJson("/people?page=2&limit=10&expanded=true", SwapiFixtures.page(personItem, 10, 82, 9));
 
@@ -71,7 +71,7 @@ class SwapiCatalogAdapterTest {
 	}
 
 	@Test
-	void E12_pageBeyondTotalPages_returnsEmptyContentWithTotals() {
+	void pageBeyondTotalPagesReturnsEmptyContentWithTotals() {
 		JsonNode personItem = SwapiFixtures.firstItem("people-page");
 		stubJson("/people?page=10&limit=10&expanded=true", SwapiFixtures.page(personItem, 2, 82, 9));
 
@@ -83,9 +83,9 @@ class SwapiCatalogAdapterTest {
 	}
 
 	@Test
-	void E14_secondPageOfFilms_paginatesInMemoryFromASingleUnpagedCall() {
+	void secondPageOfFilmsPaginatesInMemoryFromASingleUnpagedCall() {
 		JsonNode filmItem = SwapiFixtures.firstItem("films");
-		stubJson("/films", SwapiFixtures.list(filmItem, 6, "Film "));
+		stubJson("/films", SwapiFixtures.list(filmItem, 6, "title", "Film "));
 
 		Page<Film> page = filmsAdapter.findPage(new PageQuery(2, 4));
 
@@ -96,7 +96,7 @@ class SwapiCatalogAdapterTest {
 	}
 
 	@Test
-	void E15_pageOfStarshipsAndVehicles_callsExpandedPageOfEachResource() {
+	void pageOfStarshipsAndVehiclesCallsExpandedPageOfEachResource() {
 		JsonNode starshipItem = SwapiFixtures.firstItem("starships-search");
 		JsonNode vehicleItem = SwapiFixtures.firstItem("vehicle-detail");
 		stubJson("/starships?page=2&limit=10&expanded=true", SwapiFixtures.page(starshipItem, 10, 36, 4));
@@ -112,8 +112,8 @@ class SwapiCatalogAdapterTest {
 	}
 
 	@Test
-	void E17_searchFilmsByName_usesTheTitleParameter() {
-		stubJson("/films?title=hope", SwapiFixtures.list(SwapiFixtures.firstItem("films"), 1, "A New Hope "));
+	void searchFilmsByNameUsesTheTitleParameter() {
+		stubJson("/films?title=hope", SwapiFixtures.list(SwapiFixtures.firstItem("films"), 1, "title", "A New Hope "));
 
 		List<Film> films = filmsAdapter.findAllByName("hope");
 
@@ -123,7 +123,7 @@ class SwapiCatalogAdapterTest {
 	}
 
 	@Test
-	void E18_searchWithoutMatches_returnsEmptyList() {
+	void searchWithoutMatchesReturnsEmptyList() {
 		stubJson("/people?name=zzz", "{\"message\":\"ok\",\"result\":[]}");
 
 		List<Person> people = peopleAdapter.findAllByName("zzz");
@@ -132,7 +132,7 @@ class SwapiCatalogAdapterTest {
 	}
 
 	@Test
-	void E20_personById_callsDetailAndReturnsThePerson() {
+	void personByIdCallsDetailAndReturnsThePerson() {
 		JsonNode personItem = SwapiFixtures.firstItem("people-page");
 		stubJson("/people/1", SwapiFixtures.detail(personItem));
 
@@ -144,7 +144,7 @@ class SwapiCatalogAdapterTest {
 	}
 
 	@Test
-	void E21_E25_unknownId_returnsEmpty() {
+	void unknownIdReturnsEmpty() {
 		wireMock.stubFor(get(urlEqualTo("/people/9999"))
 			.willReturn(aResponse().withStatus(404).withBody("{\"message\":\"not found\"}")));
 

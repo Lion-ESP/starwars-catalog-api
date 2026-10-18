@@ -24,7 +24,6 @@ import io.github.lionesp.starwarscatalog.domain.page.Page;
 import io.github.lionesp.starwarscatalog.domain.page.PageQuery;
 import java.time.Duration;
 import java.util.List;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -41,7 +40,6 @@ class ApiExceptionHandlerTest extends CatalogWebTestSupport {
 	private static final String PEOPLE_URL = "/api/v1/people";
 
 	@Test
-	@DisplayName("E33: SwapiServerErrorException responde 502 Problem Details")
 	void serverErrorIsBadGateway() throws Exception {
 		when(peopleService.list(any(CatalogFilter.class), any(PageQuery.class)))
 				.thenThrow(new SwapiServerErrorException(500));
@@ -54,7 +52,6 @@ class ApiExceptionHandlerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("SwapiBadResponseException responde 502 Problem Details")
 	void badResponseIsBadGateway() throws Exception {
 		when(peopleService.list(any(CatalogFilter.class), any(PageQuery.class)))
 				.thenThrow(new SwapiBadResponseException("unexpected body", null));
@@ -65,7 +62,6 @@ class ApiExceptionHandlerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E36: timeout responde 503 con Retry-After")
 	void timeoutIsServiceUnavailable() throws Exception {
 		when(peopleService.list(any(CatalogFilter.class), any(PageQuery.class)))
 				.thenThrow(new SwapiTimeoutException(null, Duration.ofSeconds(30)));
@@ -78,7 +74,6 @@ class ApiExceptionHandlerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E51: conexión rechazada responde 503 con Retry-After")
 	void connectionFailureIsServiceUnavailable() throws Exception {
 		when(peopleService.get("1")).thenThrow(new SwapiConnectionException(null, Duration.ofSeconds(30)));
 
@@ -88,7 +83,6 @@ class ApiExceptionHandlerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E37: cupo agotado responde 503 con Retry-After del reset")
 	void rateLimitIsServiceUnavailable() throws Exception {
 		when(peopleService.get("1")).thenThrow(new SwapiRateLimitedException(Duration.ofSeconds(12)));
 
@@ -98,7 +92,6 @@ class ApiExceptionHandlerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E38: breaker abierto responde 503 con Retry-After")
 	void openCircuitIsServiceUnavailable() throws Exception {
 		when(peopleService.get("1")).thenThrow(new SwapiCircuitOpenException(null, Duration.ofSeconds(30)));
 
@@ -107,7 +100,7 @@ class ApiExceptionHandlerTest extends CatalogWebTestSupport {
 				.andExpect(header().string(HttpHeaders.RETRY_AFTER, "30"));
 	}
 
-	@ParameterizedTest(name = "Retry-After de {0} ms se informa como {1} s")
+	@ParameterizedTest(name = "a retry delay of {0} ms is reported as {1} s in Retry-After")
 	@CsvSource({"0,1", "1,1", "500,1", "1000,1", "1001,2", "29200,30"})
 	void retryAfterIsRoundedUpWithMinimumOneSecond(long millis, String expectedSeconds) throws Exception {
 		when(peopleService.get("1")).thenThrow(new SwapiRateLimitedException(Duration.ofMillis(millis)));
@@ -117,7 +110,6 @@ class ApiExceptionHandlerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E25: CatalogItemNotFoundException responde 404 Problem Details con el id")
 	void notFoundNamesTheId() throws Exception {
 		when(peopleService.get("9999")).thenThrow(new CatalogItemNotFoundException("9999"));
 
@@ -141,7 +133,6 @@ class ApiExceptionHandlerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("name of exactly 100 characters is accepted")
 	void nameOfMaximumLengthIsAccepted() throws Exception {
 		String maximumLengthName = "a".repeat(100);
 		when(peopleService.list(any(CatalogFilter.class), any(PageQuery.class)))
@@ -153,7 +144,6 @@ class ApiExceptionHandlerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("an unsupported method answers 405 Problem Details with the Allow header")
 	void unsupportedMethodIsMethodNotAllowed() throws Exception {
 		mockMvc.perform(post(PEOPLE_URL).header(HttpHeaders.AUTHORIZATION, userToken()))
 				.andExpect(status().isMethodNotAllowed())
@@ -163,7 +153,6 @@ class ApiExceptionHandlerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("an unknown route with a valid token answers 404 Problem Details")
 	void unknownRouteIsNotFound() throws Exception {
 		mockMvc.perform(get("/api/v1/nothing-here").header(HttpHeaders.AUTHORIZATION, userToken()))
 				.andExpect(status().isNotFound())
@@ -172,7 +161,6 @@ class ApiExceptionHandlerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("an unexpected exception answers a generic 500 without internal details")
 	void unexpectedExceptionIsInternalServerErrorWithoutDetails() throws Exception {
 		when(peopleService.get("1")).thenThrow(new IllegalStateException("secret internal state"));
 
@@ -185,7 +173,6 @@ class ApiExceptionHandlerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("an unexpected exception is logged as an error with the stack and the request id")
 	void unexpectedExceptionIsLoggedAsErrorWithRequestId(CapturedOutput output) throws Exception {
 		when(peopleService.get("1")).thenThrow(new IllegalStateException("secret internal state"));
 
@@ -197,7 +184,6 @@ class ApiExceptionHandlerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("a 502 is logged as a warning with the request id")
 	void badGatewayIsLoggedAsWarningWithRequestId(CapturedOutput output) throws Exception {
 		when(peopleService.get("1")).thenThrow(new SwapiServerErrorException(500));
 
@@ -208,7 +194,6 @@ class ApiExceptionHandlerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("a 503 is logged as a warning with the request id")
 	void serviceUnavailableIsLoggedAsWarningWithRequestId(CapturedOutput output) throws Exception {
 		when(peopleService.get("1")).thenThrow(new SwapiRateLimitedException(Duration.ofSeconds(12)));
 

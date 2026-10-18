@@ -12,7 +12,6 @@ import io.github.lionesp.starwarscatalog.domain.model.Vehicle;
 import io.github.lionesp.starwarscatalog.domain.page.Page;
 import io.github.lionesp.starwarscatalog.domain.page.PageQuery;
 import java.util.List;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 
@@ -25,7 +24,6 @@ class VehiclesControllerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E15: el listado de vehicles pagina y responde con la forma de PageResponse")
 	void listDelegatesToTheService() throws Exception {
 		when(vehiclesService.list(any(CatalogFilter.class), any(PageQuery.class)))
 				.thenReturn(new Page<>(List.of(sample()), 1, 10, 1, 1));
@@ -40,7 +38,6 @@ class VehiclesControllerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E16 y E17: el filtro name llega al servicio de vehicles")
 	void nameFilterReachesTheService() throws Exception {
 		when(vehiclesService.list(any(CatalogFilter.class), any(PageQuery.class)))
 				.thenReturn(new Page<>(List.of(sample()), 1, 10, 1, 1));
@@ -52,7 +49,6 @@ class VehiclesControllerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E24: el detalle de vehicles delega en get(id)")
 	void detailDelegatesToGet() throws Exception {
 		when(vehiclesService.get("4")).thenReturn(sample());
 

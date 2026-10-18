@@ -12,7 +12,6 @@ import io.github.lionesp.starwarscatalog.domain.model.Film;
 import io.github.lionesp.starwarscatalog.domain.page.Page;
 import io.github.lionesp.starwarscatalog.domain.page.PageQuery;
 import java.util.List;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 
@@ -25,7 +24,6 @@ class FilmsControllerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E15: el listado de films pagina y responde con la forma de PageResponse")
 	void listDelegatesToTheService() throws Exception {
 		when(filmsService.list(any(CatalogFilter.class), any(PageQuery.class)))
 				.thenReturn(new Page<>(List.of(sample()), 1, 10, 1, 1));
@@ -40,7 +38,6 @@ class FilmsControllerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E16 y E17: el filtro name llega al servicio de films")
 	void nameFilterReachesTheService() throws Exception {
 		when(filmsService.list(any(CatalogFilter.class), any(PageQuery.class)))
 				.thenReturn(new Page<>(List.of(sample()), 1, 10, 1, 1));
@@ -52,7 +49,6 @@ class FilmsControllerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E24: el detalle de films delega en get(id)")
 	void detailDelegatesToGet() throws Exception {
 		when(filmsService.get("1")).thenReturn(sample());
 

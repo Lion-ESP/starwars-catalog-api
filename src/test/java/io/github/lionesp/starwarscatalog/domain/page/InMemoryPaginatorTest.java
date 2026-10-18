@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.stream.IntStream;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class InMemoryPaginatorTest {
@@ -15,7 +14,6 @@ class InMemoryPaginatorTest {
 	}
 
 	@Test
-	@DisplayName("E14: page 2 of 6 elements with size 4 holds the 5th and 6th in received order")
 	void lastPartialPageKeepsReceivedOrder() {
 		Page<Integer> page = InMemoryPaginator.paginate(elements(6), new PageQuery(2, 4));
 
@@ -27,7 +25,6 @@ class InMemoryPaginatorTest {
 	}
 
 	@Test
-	@DisplayName("E11: the default query returns the first 10 of 82 elements")
 	void defaultQueryReturnsFirstTen() {
 		Page<Integer> page = InMemoryPaginator.paginate(elements(82), PageQuery.of(null, null));
 
@@ -36,7 +33,6 @@ class InMemoryPaginatorTest {
 	}
 
 	@Test
-	@DisplayName("E12: page 10 of 82 elements with size 10 is empty with real totals")
 	void pageBeyondLastIsEmptyWithRealTotals() {
 		Page<Integer> page = InMemoryPaginator.paginate(elements(82), new PageQuery(10, 10));
 
@@ -46,7 +42,6 @@ class InMemoryPaginatorTest {
 	}
 
 	@Test
-	@DisplayName("E45: page 3 with size 4 over 6 elements is empty with totals 6 and 2")
 	void pageThreeSizeFourOverSixElements() {
 		Page<Integer> page = InMemoryPaginator.paginate(elements(6), new PageQuery(3, 4));
 
@@ -56,7 +51,6 @@ class InMemoryPaginatorTest {
 	}
 
 	@Test
-	@DisplayName("E45: page 3 with size 1 over 2 elements is empty with totals 2 and 2")
 	void pageThreeSizeOneOverTwoElements() {
 		Page<Integer> page = InMemoryPaginator.paginate(elements(2), new PageQuery(3, 1));
 
@@ -66,7 +60,6 @@ class InMemoryPaginatorTest {
 	}
 
 	@Test
-	@DisplayName("E46: page Integer.MAX_VALUE with size 100 never overflows")
 	void maximumPageDoesNotOverflow() {
 		Page<Integer> page = InMemoryPaginator.paginate(elements(6), new PageQuery(Integer.MAX_VALUE, 100));
 
@@ -76,7 +69,6 @@ class InMemoryPaginatorTest {
 	}
 
 	@Test
-	@DisplayName("E47: page 2 of a single element is empty and keeps page 2, total 1 and one page")
 	void secondPageOfSingleElement() {
 		Page<Integer> page = InMemoryPaginator.paginate(elements(1), new PageQuery(2, 10));
 
@@ -87,7 +79,6 @@ class InMemoryPaginatorTest {
 	}
 
 	@Test
-	@DisplayName("E18: zero elements yield zero total pages")
 	void emptyListHasZeroTotalPages() {
 		Page<Integer> page = InMemoryPaginator.paginate(List.of(), new PageQuery(1, 10));
 
@@ -97,7 +88,6 @@ class InMemoryPaginatorTest {
 	}
 
 	@Test
-	@DisplayName("E14: the page content is immutable")
 	void contentIsImmutable() {
 		Page<Integer> page = InMemoryPaginator.paginate(elements(3), new PageQuery(1, 10));
 

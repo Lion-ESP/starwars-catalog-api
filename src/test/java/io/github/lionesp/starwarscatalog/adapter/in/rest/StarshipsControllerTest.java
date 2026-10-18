@@ -12,7 +12,6 @@ import io.github.lionesp.starwarscatalog.domain.model.Starship;
 import io.github.lionesp.starwarscatalog.domain.page.Page;
 import io.github.lionesp.starwarscatalog.domain.page.PageQuery;
 import java.util.List;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 
@@ -25,7 +24,6 @@ class StarshipsControllerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E15: el listado de starships pagina y responde con la forma de PageResponse")
 	void listDelegatesToTheService() throws Exception {
 		when(starshipsService.list(any(CatalogFilter.class), any(PageQuery.class)))
 				.thenReturn(new Page<>(List.of(sample()), 1, 10, 1, 1));
@@ -40,7 +38,6 @@ class StarshipsControllerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E16 y E17: el filtro name llega al servicio de starships")
 	void nameFilterReachesTheService() throws Exception {
 		when(starshipsService.list(any(CatalogFilter.class), any(PageQuery.class)))
 				.thenReturn(new Page<>(List.of(sample()), 1, 10, 1, 1));
@@ -52,7 +49,6 @@ class StarshipsControllerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E24: el detalle de starships delega en get(id)")
 	void detailDelegatesToGet() throws Exception {
 		when(starshipsService.get("9")).thenReturn(sample());
 

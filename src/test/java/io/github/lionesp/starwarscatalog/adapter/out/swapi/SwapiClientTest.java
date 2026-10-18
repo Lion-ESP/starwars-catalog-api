@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
+import io.github.lionesp.starwarscatalog.adapter.out.swapi.dto.SwapiFilmProperties;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.dto.SwapiPersonProperties;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.exception.SwapiBadResponseException;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.exception.SwapiConnectionException;
@@ -22,13 +23,17 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.junit.jupiter.api.extension.RegisterExtension;
 
 class SwapiClientTest {
 
+	private static final Duration READ_TIMEOUT = Duration.ofSeconds(2);
+
 	private static final Duration SHORT_READ_TIMEOUT = Duration.ofMillis(300);
+
+	private static final int RESPONSE_DELAY_BEYOND_SHORT_TIMEOUT_MILLIS = 2_000;
 
 	private static final Instant NOW = Instant.ofEpochSecond(1_000_000L);
 
@@ -39,10 +44,10 @@ class SwapiClientTest {
 		.options(wireMockConfig().dynamicPort())
 		.build();
 
-	private final SwapiClient client = SwapiFixtures.client(wireMock.baseUrl(), SHORT_READ_TIMEOUT, FIXED_CLOCK);
+	private final SwapiClient client = SwapiFixtures.client(wireMock.baseUrl(), READ_TIMEOUT, FIXED_CLOCK);
 
 	@Test
-	void E35_notFoundOnById_returnsEmptyWithASingleCall() {
+	void notFoundOnByIdReturnsEmptyWithASingleCall() {
 		wireMock.stubFor(get(urlEqualTo("/people/9999"))
 			.willReturn(aResponse().withStatus(404).withBody("{\"message\":\"not found\"}")));
 
@@ -53,7 +58,7 @@ class SwapiClientTest {
 	}
 
 	@Test
-	void E35_rateLimited_makesASingleCall() {
+	void rateLimitedMakesASingleCall() {
 		wireMock.stubFor(get(urlEqualTo("/people/1")).willReturn(aResponse().withStatus(429)));
 
 		assertThatThrownBy(() -> client.fetchById(SwapiResource.PEOPLE, SwapiPersonProperties.class, "1"))
@@ -63,7 +68,7 @@ class SwapiClientTest {
 	}
 
 	@Test
-	void E37_rateLimitedWithResetHeader_retryAfterIsSecondsUntilReset() {
+	void rateLimitedWithResetHeaderRetryAfterIsSecondsUntilReset() {
 		long secondsUntilReset = 45L;
 		wireMock.stubFor(get(urlEqualTo("/people?page=1&limit=10&expanded=true")).willReturn(aResponse()
 			.withStatus(429)
@@ -75,7 +80,7 @@ class SwapiClientTest {
 	}
 
 	@Test
-	void E37_rateLimitedWithResetAlreadyPassed_retryAfterIsAtLeastOneSecond() {
+	void rateLimitedWithResetAlreadyPassedRetryAfterIsAtLeastOneSecond() {
 		wireMock.stubFor(get(urlEqualTo("/people/1")).willReturn(aResponse()
 			.withStatus(429)
 			.withHeader("x-ratelimit-reset", String.valueOf(NOW.getEpochSecond() - 100))));
@@ -86,7 +91,7 @@ class SwapiClientTest {
 	}
 
 	@Test
-	void E37_rateLimitedWithoutResetHeader_retryAfterIsTheDefault() {
+	void rateLimitedWithoutResetHeaderRetryAfterIsTheDefault() {
 		wireMock.stubFor(get(urlEqualTo("/people/1")).willReturn(aResponse().withStatus(429)));
 
 		assertThatThrownBy(() -> client.fetchById(SwapiResource.PEOPLE, SwapiPersonProperties.class, "1"))
@@ -95,40 +100,42 @@ class SwapiClientTest {
 	}
 
 	@Test
-	void E36_readTimeout_throwsTimeoutWithDefaultRetryAfter() {
-		wireMock.stubFor(get(urlEqualTo("/people/1")).willReturn(aResponse().withStatus(200).withFixedDelay(2000)));
+	void readTimeoutThrowsTimeoutWithDefaultRetryAfter() {
+		SwapiClient shortTimeoutClient = SwapiFixtures.client(wireMock.baseUrl(), SHORT_READ_TIMEOUT, FIXED_CLOCK);
+		wireMock.stubFor(get(urlEqualTo("/people/1"))
+			.willReturn(aResponse().withStatus(200).withFixedDelay(RESPONSE_DELAY_BEYOND_SHORT_TIMEOUT_MILLIS)));
 
-		assertThatThrownBy(() -> client.fetchById(SwapiResource.PEOPLE, SwapiPersonProperties.class, "1"))
+		assertThatThrownBy(() -> shortTimeoutClient.fetchById(SwapiResource.PEOPLE, SwapiPersonProperties.class, "1"))
 			.isInstanceOfSatisfying(SwapiTimeoutException.class,
 					exception -> assertThat(exception.retryAfter()).isEqualTo(SwapiFixtures.DEFAULT_RETRY_AFTER));
 	}
 
 	@Test
-	void E51_closedPort_throwsConnectionWithDefaultRetryAfter() throws IOException {
+	void closedPortThrowsConnectionWithDefaultRetryAfter() throws IOException {
 		int closedPort;
 		try (ServerSocket socket = new ServerSocket(0)) {
 			closedPort = socket.getLocalPort();
 		}
-		SwapiClient unreachableClient = SwapiFixtures.client("http://localhost:" + closedPort, SHORT_READ_TIMEOUT,
+		SwapiClient unreachableClient = SwapiFixtures.client("http://localhost:" + closedPort, READ_TIMEOUT,
 				FIXED_CLOCK);
 
-		assertThatThrownBy(() -> unreachableClient.fetchAll(SwapiResource.FILMS, SwapiPersonProperties.class))
+		assertThatThrownBy(() -> unreachableClient.fetchAll(SwapiResource.FILMS, SwapiFilmProperties.class))
 			.isInstanceOfSatisfying(SwapiConnectionException.class,
 					exception -> assertThat(exception.retryAfter()).isEqualTo(SwapiFixtures.DEFAULT_RETRY_AFTER));
 	}
 
 	@Test
-	void E35_serverError_throwsServerErrorWithASingleCall() {
+	void serverErrorThrowsServerErrorWithASingleCall() {
 		wireMock.stubFor(get(urlEqualTo("/films")).willReturn(aResponse().withStatus(503)));
 
-		assertThatThrownBy(() -> client.fetchAll(SwapiResource.FILMS, SwapiPersonProperties.class))
+		assertThatThrownBy(() -> client.fetchAll(SwapiResource.FILMS, SwapiFilmProperties.class))
 			.isInstanceOf(SwapiServerErrorException.class);
 
 		wireMock.verify(1, getRequestedFor(urlEqualTo("/films")));
 	}
 
 	@Test
-	void unexpectedClientError_throwsBadResponse() {
+	void unexpectedClientErrorThrowsBadResponse() {
 		wireMock.stubFor(get(urlEqualTo("/people?name=luke")).willReturn(aResponse().withStatus(400)));
 
 		assertThatThrownBy(() -> client.search(SwapiResource.PEOPLE, SwapiPersonProperties.class, "luke"))
@@ -136,7 +143,7 @@ class SwapiClientTest {
 	}
 
 	@Test
-	void undecodableBody_throwsBadResponse() {
+	void undecodableBodyThrowsBadResponse() {
 		wireMock.stubFor(get(urlEqualTo("/people/1"))
 			.willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("not json")));
 
@@ -161,7 +168,7 @@ class SwapiClientTest {
 			"{\"message\":\"ok\",\"total_records\":1,\"total_pages\":1}",
 			"{\"message\":\"ok\",\"total_records\":1,\"total_pages\":1,\"results\":[{\"uid\":\"1\"}]}",
 			"{\"message\":\"ok\",\"total_records\":1,\"total_pages\":1,\"results\":[{\"properties\":{}}]}" })
-	void pageWithIncompleteEnvelopeOrItem_throwsBadResponse(String incompletePage) {
+	void pageWithIncompleteEnvelopeOrItemThrowsBadResponse(String incompletePage) {
 		stubOk(PAGE_URL, incompletePage);
 
 		assertThatThrownBy(() -> client.fetchPage(SwapiResource.PEOPLE, SwapiPersonProperties.class, 1, 10))
@@ -170,26 +177,26 @@ class SwapiClientTest {
 
 	@ParameterizedTest
 	@ValueSource(strings = { "{\"message\":\"ok\"}", "{\"message\":\"ok\",\"result\":null}" })
-	void listWithoutResult_throwsBadResponse(String listWithoutResult) {
+	void listWithoutResultThrowsBadResponse(String listWithoutResult) {
 		stubOk("/films", listWithoutResult);
 
-		assertThatThrownBy(() -> client.fetchAll(SwapiResource.FILMS, SwapiPersonProperties.class))
+		assertThatThrownBy(() -> client.fetchAll(SwapiResource.FILMS, SwapiFilmProperties.class))
 			.isInstanceOf(SwapiBadResponseException.class);
 	}
 
 	@Test
-	void listWithItemMissingUidOrProperties_throwsBadResponse() {
+	void listWithItemMissingUidOrPropertiesThrowsBadResponse() {
 		stubOk("/films", "{\"result\":[" + PERSON_WITHOUT_UID + "]}");
 		stubOk("/people?name=luke", "{\"result\":[" + PERSON_WITHOUT_PROPERTIES + "]}");
 
-		assertThatThrownBy(() -> client.fetchAll(SwapiResource.FILMS, SwapiPersonProperties.class))
+		assertThatThrownBy(() -> client.fetchAll(SwapiResource.FILMS, SwapiFilmProperties.class))
 			.isInstanceOf(SwapiBadResponseException.class);
 		assertThatThrownBy(() -> client.search(SwapiResource.PEOPLE, SwapiPersonProperties.class, "luke"))
 			.isInstanceOf(SwapiBadResponseException.class);
 	}
 
 	@Test
-	void searchWithoutResult_throwsBadResponse() {
+	void searchWithoutResultThrowsBadResponse() {
 		stubOk("/people?name=luke", "{\"message\":\"ok\"}");
 
 		assertThatThrownBy(() -> client.search(SwapiResource.PEOPLE, SwapiPersonProperties.class, "luke"))
@@ -199,7 +206,7 @@ class SwapiClientTest {
 	@ParameterizedTest
 	@ValueSource(strings = { "{\"message\":\"ok\"}", "{\"message\":\"ok\",\"result\":null}",
 			"{\"result\":{\"uid\":\"1\"}}", "{\"result\":{\"properties\":{}}}" })
-	void detailWithoutUsableResult_throwsBadResponseInsteadOfEmpty(String unusableDetail) {
+	void detailWithoutUsableResultThrowsBadResponseInsteadOfEmpty(String unusableDetail) {
 		stubOk("/people/1", unusableDetail);
 
 		assertThatThrownBy(() -> client.fetchById(SwapiResource.PEOPLE, SwapiPersonProperties.class, "1"))
@@ -207,7 +214,7 @@ class SwapiClientTest {
 	}
 
 	@Test
-	void rateLimitResetBeyondTheQuotaWindow_isCappedToTheMaximumRetryAfter() {
+	void rateLimitResetBeyondTheQuotaWindowIsCappedToTheMaximumRetryAfter() {
 		long secondsUntilReset = SwapiFixtures.MAX_RETRY_AFTER.toSeconds() * 4;
 		wireMock.stubFor(get(urlEqualTo("/people/1")).willReturn(aResponse()
 			.withStatus(429)
@@ -219,7 +226,7 @@ class SwapiClientTest {
 	}
 
 	@Test
-	void rateLimitResetThatIsNotNumeric_fallsBackToTheDefaultRetryAfter() {
+	void rateLimitResetThatIsNotNumericFallsBackToTheDefaultRetryAfter() {
 		wireMock.stubFor(get(urlEqualTo("/people/1"))
 			.willReturn(aResponse().withStatus(429).withHeader("x-ratelimit-reset", "tomorrow")));
 

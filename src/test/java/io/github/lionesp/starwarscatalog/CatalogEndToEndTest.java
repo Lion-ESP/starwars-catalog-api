@@ -4,9 +4,7 @@ import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
-import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -14,202 +12,210 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import io.github.lionesp.starwarscatalog.adapter.in.rest.CorrelationIdFilter;
-import io.github.lionesp.starwarscatalog.adapter.out.swapi.SwapiClient;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.SwapiFixtures;
 import io.github.lionesp.starwarscatalog.security.JwtProperties;
-import io.github.lionesp.starwarscatalog.security.TokenService;
-import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
-import java.time.Clock;
+import io.github.lionesp.testsupport.SwapiWireMockSupport;
+import io.github.lionesp.testsupport.TestCredentials;
+import io.github.lionesp.testsupport.TestTokens;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.List;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.cache.CacheManager;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-@SpringBootTest(properties = {
-		"app.security.jwt.secret=" + CatalogEndToEndTest.SECRET,
-		"resilience4j.retry.instances.swapi.wait-duration=10ms"
-})
+@SpringBootTest(properties = TestCredentials.JWT_SECRET_PROPERTY)
 @AutoConfigureMockMvc
-class CatalogEndToEndTest {
+class CatalogEndToEndTest extends SwapiWireMockSupport {
 
-	static final String SECRET = "end-to-end-test-secret-with-more-than-32-bytes";
+	private static final String LOGIN_PATH = "/api/v1/auth/login";
 
-	@RegisterExtension
-	static WireMockExtension wireMock = WireMockExtension.newInstance()
-		.options(wireMockConfig().dynamicPort())
-		.build();
+	private static final String PEOPLE_PATH = "/api/v1/people";
 
-	@DynamicPropertySource
-	static void swapiBaseUrl(DynamicPropertyRegistry registry) {
-		registry.add("swapi.base-url", wireMock::baseUrl);
-	}
+	private static final String PEOPLE_PAGE_QUERY = "?page=2&size=10";
+
+	private static final String SWAPI_PEOPLE_PAGE_URL = "/people?page=2&limit=10&expanded=true";
+
+	private static final String CACHE_GETS_METRIC = "cache.gets?tag=cache:swapi";
+
+	private static final String PEOPLE_REQUESTS_METRIC = "http.server.requests?tag=uri:" + PEOPLE_PATH;
+
+	private static final String COUNT_STATISTIC = "COUNT";
+
+	private static final long RATE_LIMIT_RESET_SECONDS = 20;
+
+	private static final long RETRY_AFTER_LOWER_BOUND_SECONDS = 1;
+
+	private static final long RETRY_AFTER_UPPER_BOUND_SECONDS = RATE_LIMIT_RESET_SECONDS + 1;
+
+	private static final String REQUEST_ID_SENT_BY_CLIENT = "client-req-42";
 
 	@Autowired
 	private MockMvc mockMvc;
-
-	@Autowired
-	private CacheManager cacheManager;
-
-	@Autowired
-	private CircuitBreakerRegistry circuitBreakerRegistry;
 
 	@Autowired
 	private JwtProperties jwtProperties;
 
 	private final JsonMapper jsonMapper = JsonMapper.builder().build();
 
-	@BeforeEach
-	void resetState() {
-		wireMock.resetAll();
-		cacheManager.getCache(SwapiClient.CACHE_NAME).clear();
-		circuitBreakerRegistry.circuitBreaker("swapi").reset();
-	}
-
 	private String login(String username, String password) throws Exception {
-		String responseBody = mockMvc.perform(post("/api/v1/auth/login")
+		String responseBody = mockMvc.perform(post(LOGIN_PATH)
 				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"username\":\"" + username + "\",\"password\":\"" + password + "\"}"))
+				.content(TestCredentials.loginBody(username, password)))
 			.andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString();
 		JsonNode tokenResponse = jsonMapper.readTree(responseBody);
-		return "Bearer " + tokenResponse.get("accessToken").asString();
+		return TestTokens.bearer(tokenResponse.get("accessToken").asString());
+	}
+
+	private String loginAsUser() throws Exception {
+		return login(TestCredentials.USER_USERNAME, TestCredentials.USER_PASSWORD);
+	}
+
+	private String loginAsAdmin() throws Exception {
+		return login(TestCredentials.ADMIN_USERNAME, TestCredentials.ADMIN_PASSWORD);
 	}
 
 	private ResultActions getAs(String bearer, String path) throws Exception {
 		return mockMvc.perform(MockMvcRequestBuilders.get(path).header(HttpHeaders.AUTHORIZATION, bearer));
 	}
 
-	private void stubSwapi(String urlWithQuery, int status, String body) {
-		wireMock.stubFor(get(urlEqualTo(urlWithQuery)).willReturn(aResponse().withStatus(status)
-			.withHeader("Content-Type", "application/json")
-			.withBody(body)));
-	}
-
 	private void stubPeoplePage() {
 		String body = SwapiFixtures.page(SwapiFixtures.firstItem("people-page"), 10, 82, 9);
-		stubSwapi("/people?page=2&limit=10&expanded=true", 200, body);
+		stubJson(SWAPI_PEOPLE_PAGE_URL, 200, body);
+	}
+
+	private double metricCount(String adminBearer, String metricWithTag) throws Exception {
+		MvcResult result = getAs(adminBearer, "/actuator/metrics/" + metricWithTag).andReturn();
+		if (result.getResponse().getStatus() == 404) {
+			return 0.0;
+		}
+		double count = 0.0;
+		for (JsonNode measurement : jsonMapper.readTree(result.getResponse().getContentAsString()).get("measurements")) {
+			if (COUNT_STATISTIC.equals(measurement.get("statistic").asString())) {
+				count += measurement.get("value").asDouble();
+			}
+		}
+		return count;
 	}
 
 	@Test
-	@DisplayName("E1 + E10: login real y listado de people paginado llama a SWAPI con page, limit y expanded")
 	void loginThenListPeopleCallsSwapiWithExpandedPagination() throws Exception {
 		stubPeoplePage();
-		String userBearer = login("user", "user-password");
+		String userBearer = loginAsUser();
 
-		getAs(userBearer, "/api/v1/people?page=2&size=10")
+		getAs(userBearer, PEOPLE_PATH + PEOPLE_PAGE_QUERY)
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.content.length()").value(10))
+			.andExpect(jsonPath("$.content[0].id").value("1"))
+			.andExpect(jsonPath("$.content[0].name").value("Luke Skywalker"))
+			.andExpect(jsonPath("$.content[0].height").value(172))
 			.andExpect(jsonPath("$.page").value(2))
 			.andExpect(jsonPath("$.size").value(10))
 			.andExpect(jsonPath("$.totalElements").value(82))
 			.andExpect(jsonPath("$.totalPages").value(9));
 
-		wireMock.verify(1, getRequestedFor(urlEqualTo("/people?page=2&limit=10&expanded=true")));
+		wireMock.verify(1, getRequestedFor(urlEqualTo(SWAPI_PEOPLE_PAGE_URL)));
 	}
 
 	@Test
-	@DisplayName("E1: el login devuelve accessToken, tokenType Bearer y expiresIn configurado")
-	void loginReturnsBearerToken() throws Exception {
-		mockMvc.perform(post("/api/v1/auth/login")
+	void loginReturnsBearerTokenWithTheConfiguredLifetime() throws Exception {
+		mockMvc.perform(post(LOGIN_PATH)
 				.contentType(MediaType.APPLICATION_JSON)
-				.content("{\"username\":\"user\",\"password\":\"user-password\"}"))
+				.content(TestCredentials.userLoginBody()))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.tokenType").value("Bearer"))
-			.andExpect(jsonPath("$.expiresIn").value(3600))
+			.andExpect(jsonPath("$.expiresIn").value(jwtProperties.expiration().toSeconds()))
 			.andExpect(jsonPath("$.accessToken").isNotEmpty());
 	}
 
 	@Test
-	@DisplayName("E17: films?name=hope llama a SWAPI con title y nunca con name")
-	void filmsSearchCallsSwapiWithTitle() throws Exception {
-		String body = SwapiFixtures.list(SwapiFixtures.firstItem("films"), 1, "A New Hope ");
-		stubSwapi("/films?title=hope", 200, body);
-		String userBearer = login("user", "user-password");
+	void filmsSearchCallsSwapiWithTitleAndNeverWithName() throws Exception {
+		String body = SwapiFixtures.list(SwapiFixtures.firstItem("films"), 1, "title", "A New Hope ");
+		stubJson("/films?title=hope", 200, body);
+		String userBearer = loginAsUser();
 
-		getAs(userBearer, "/api/v1/films?name=hope").andExpect(status().isOk());
+		getAs(userBearer, "/api/v1/films?name=hope")
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalElements").value(1))
+			.andExpect(jsonPath("$.content[0].title").value("A New Hope 1"));
 
 		wireMock.verify(1, getRequestedFor(urlEqualTo("/films?title=hope")));
 		wireMock.verify(0, getRequestedFor(urlEqualTo("/films?name=hope")));
 	}
 
 	@Test
-	@DisplayName("E25 + E49: id inexistente es 404 Problem Details y repetirlo no vuelve a llamar a SWAPI")
-	void unknownIdIsNotFoundAndCachedAcrossRequests() throws Exception {
-		stubSwapi("/people/9999", 404, "{\"message\":\"not found\"}");
-		String userBearer = login("user", "user-password");
+	void unknownIdIsNotFoundAndRepeatingItDoesNotCallSwapiAgain() throws Exception {
+		stubJson("/people/9999", 404, "{\"message\":\"not found\"}");
+		String userBearer = loginAsUser();
 
-		getAs(userBearer, "/api/v1/people/9999")
+		getAs(userBearer, PEOPLE_PATH + "/9999")
 			.andExpect(status().isNotFound())
-			.andExpect(header().string(HttpHeaders.CONTENT_TYPE, "application/problem+json"));
-		getAs(userBearer, "/api/v1/people/9999").andExpect(status().isNotFound());
+			.andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PROBLEM_JSON_VALUE));
+		getAs(userBearer, PEOPLE_PATH + "/9999").andExpect(status().isNotFound());
 
 		wireMock.verify(1, getRequestedFor(urlEqualTo("/people/9999")));
 	}
 
 	@Test
-	@DisplayName("E33: SWAPI 500 persistente es 502 Problem Details tras 3 llamadas")
-	void persistentServerErrorIsBadGatewayAfterThreeCalls() throws Exception {
-		stubSwapi("/people/1", 500, "{}");
-		String userBearer = login("user", "user-password");
+	void persistentSwapiServerErrorIsBadGatewayAfterThreeCalls() throws Exception {
+		stubJson("/people/1", 500, "{}");
+		String userBearer = loginAsUser();
 
-		getAs(userBearer, "/api/v1/people/1")
+		getAs(userBearer, PEOPLE_PATH + "/1")
 			.andExpect(status().isBadGateway())
-			.andExpect(header().string(HttpHeaders.CONTENT_TYPE, "application/problem+json"));
+			.andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PROBLEM_JSON_VALUE));
 
 		wireMock.verify(3, getRequestedFor(urlEqualTo("/people/1")));
 	}
 
 	@Test
-	@DisplayName("E37: SWAPI 429 con x-ratelimit-reset es 503 con Retry-After")
-	void rateLimitedSwapiIsServiceUnavailableWithRetryAfter() throws Exception {
-		long resetEpochSeconds = Instant.now().plusSeconds(20).getEpochSecond();
+	void rateLimitedSwapiIsServiceUnavailableWithRetryAfterAndIsNotRetried() throws Exception {
+		long resetEpochSeconds = Instant.now().plusSeconds(RATE_LIMIT_RESET_SECONDS).getEpochSecond();
 		wireMock.stubFor(get(urlEqualTo("/people/1")).willReturn(aResponse().withStatus(429)
 			.withHeader("x-ratelimit-reset", String.valueOf(resetEpochSeconds))));
-		String userBearer = login("user", "user-password");
+		String userBearer = loginAsUser();
 
-		String retryAfter = getAs(userBearer, "/api/v1/people/1")
+		MvcResult result = getAs(userBearer, PEOPLE_PATH + "/1")
 			.andExpect(status().isServiceUnavailable())
-			.andReturn().getResponse().getHeader(HttpHeaders.RETRY_AFTER);
+			.andExpect(header().string(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PROBLEM_JSON_VALUE))
+			.andReturn();
 
-		assertThat(Long.parseLong(retryAfter)).isBetween(1L, 21L);
+		String retryAfter = result.getResponse().getHeader(HttpHeaders.RETRY_AFTER);
+		assertThat(retryAfter).isNotNull();
+		assertThat(Long.parseLong(retryAfter)).isBetween(RETRY_AFTER_LOWER_BOUND_SECONDS,
+				RETRY_AFTER_UPPER_BOUND_SECONDS);
+		wireMock.verify(1, getRequestedFor(urlEqualTo("/people/1")));
 	}
 
 	@Test
-	@DisplayName("E8: DELETE /admin/cache es 204 y la misma consulta vuelve a llamar a SWAPI")
 	void adminEvictionMakesTheSameQueryCallSwapiAgain() throws Exception {
 		stubPeoplePage();
-		String adminBearer = login("admin", "admin-password");
-		getAs(adminBearer, "/api/v1/people?page=2&size=10").andExpect(status().isOk());
+		String adminBearer = loginAsAdmin();
+		getAs(adminBearer, PEOPLE_PATH + PEOPLE_PAGE_QUERY).andExpect(status().isOk());
+		getAs(adminBearer, PEOPLE_PATH + PEOPLE_PAGE_QUERY).andExpect(status().isOk());
+		wireMock.verify(1, getRequestedFor(urlEqualTo(SWAPI_PEOPLE_PAGE_URL)));
 
 		mockMvc.perform(delete("/api/v1/admin/cache").header(HttpHeaders.AUTHORIZATION, adminBearer))
 			.andExpect(status().isNoContent());
-		getAs(adminBearer, "/api/v1/people?page=2&size=10").andExpect(status().isOk());
+		getAs(adminBearer, PEOPLE_PATH + PEOPLE_PAGE_QUERY).andExpect(status().isOk());
 
-		wireMock.verify(2, getRequestedFor(urlEqualTo("/people?page=2&limit=10&expanded=true")));
+		wireMock.verify(2, getRequestedFor(urlEqualTo(SWAPI_PEOPLE_PAGE_URL)));
 	}
 
 	@Test
-	@DisplayName("E39: un 401 devuelve X-Request-Id generado")
 	void unauthorizedResponseCarriesGeneratedRequestId() throws Exception {
-		String requestId = mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/people"))
+		String requestId = mockMvc.perform(MockMvcRequestBuilders.get(PEOPLE_PATH))
 			.andExpect(status().isUnauthorized())
 			.andExpect(header().exists(CorrelationIdFilter.HEADER_NAME))
 			.andReturn().getResponse().getHeader(CorrelationIdFilter.HEADER_NAME);
@@ -218,41 +224,43 @@ class CatalogEndToEndTest {
 	}
 
 	@Test
-	@DisplayName("E39: un 401 devuelve el mismo X-Request-Id válido entrante")
-	void unauthorizedResponseEchoesIncomingRequestId() throws Exception {
-		mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/people").header(CorrelationIdFilter.HEADER_NAME, "client-req-42"))
+	void unauthorizedResponseEchoesIncomingValidRequestId() throws Exception {
+		mockMvc.perform(MockMvcRequestBuilders.get(PEOPLE_PATH)
+				.header(CorrelationIdFilter.HEADER_NAME, REQUEST_ID_SENT_BY_CLIENT))
 			.andExpect(status().isUnauthorized())
-			.andExpect(header().string(CorrelationIdFilter.HEADER_NAME, "client-req-42"));
+			.andExpect(header().string(CorrelationIdFilter.HEADER_NAME, REQUEST_ID_SENT_BY_CLIENT));
+	}
+
+	@ParameterizedTest(name = "login ignores a {0} bearer")
+	@EnumSource(TestTokens.Invalid.class)
+	void loginIgnoresInvalidBearer(TestTokens.Invalid invalidToken) throws Exception {
+		mockMvc.perform(post(LOGIN_PATH)
+				.header(HttpHeaders.AUTHORIZATION, invalidToken.bearer(jwtProperties))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(TestCredentials.userLoginBody()))
+			.andExpect(status().isOk());
+	}
+
+	@ParameterizedTest(name = "a protected endpoint rejects a {0} bearer")
+	@EnumSource(TestTokens.Invalid.class)
+	void protectedEndpointRejectsInvalidBearer(TestTokens.Invalid invalidToken) throws Exception {
+		getAs(invalidToken.bearer(jwtProperties), PEOPLE_PATH).andExpect(status().isUnauthorized());
 	}
 
 	@Test
-	@DisplayName("E42: login con un bearer vencido o basura responde 200")
-	void loginIgnoresExpiredOrGarbageBearer() throws Exception {
-		Clock pastClock = Clock.fixed(Instant.parse("2020-01-01T00:00:00Z"), ZoneOffset.UTC);
-		String expiredToken = new TokenService(jwtProperties, pastClock).issue("user", List.of("USER"));
-		String loginBody = "{\"username\":\"user\",\"password\":\"user-password\"}";
-
-		for (String bearer : List.of("Bearer " + expiredToken, "Bearer basura.que.no.es.jwt")) {
-			mockMvc.perform(post("/api/v1/auth/login")
-					.header(HttpHeaders.AUTHORIZATION, bearer)
-					.contentType(MediaType.APPLICATION_JSON)
-					.content(loginBody))
-				.andExpect(status().isOk());
-		}
-	}
-
-	@Test
-	@DisplayName("E43: con ADMIN la métrica de caché y las de Resilience4j existen (E9 y E44 están en ActuatorAndDocsTest)")
-	void adminSeesCacheAndResilienceMetrics() throws Exception {
+	void adminSeesCacheAndHttpMetricsGrowAndResilienceMetricsExist() throws Exception {
 		stubPeoplePage();
-		String adminBearer = login("admin", "admin-password");
-		getAs(adminBearer, "/api/v1/people?page=2&size=10").andExpect(status().isOk());
+		String adminBearer = loginAsAdmin();
+		double cacheGetsBefore = metricCount(adminBearer, CACHE_GETS_METRIC);
+		double peopleRequestsBefore = metricCount(adminBearer, PEOPLE_REQUESTS_METRIC);
 
-		getAs(adminBearer, "/actuator/metrics/cache.gets?tag=cache:swapi")
-			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.measurements[0].value").value(greaterThanOrEqualTo(1.0)));
+		getAs(adminBearer, PEOPLE_PATH + PEOPLE_PAGE_QUERY).andExpect(status().isOk());
+
+		assertThat(metricCount(adminBearer, CACHE_GETS_METRIC) - cacheGetsBefore).isEqualTo(1.0);
+		assertThat(metricCount(adminBearer, PEOPLE_REQUESTS_METRIC) - peopleRequestsBefore).isEqualTo(1.0);
 		getAs(adminBearer, "/actuator/metrics")
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.names").value(hasItem("resilience4j.circuitbreaker.state")));
 	}
+
 }

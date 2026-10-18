@@ -12,91 +12,91 @@ import org.junit.jupiter.params.provider.ValueSource;
 class SwapiValuesTest {
 
 	@Test
-	void E26_plainIntegerIsParsed() {
+	void plainIntegerIsParsed() {
 		assertThat(SwapiValues.toLong("172")).isEqualTo(172L);
 	}
 
 	@Test
-	void E26_thousandsSeparatorIsRemoved() {
+	void thousandsSeparatorIsRemoved() {
 		assertThat(SwapiValues.toLong("843,342")).isEqualTo(843342L);
 	}
 
 	@Test
-	void E26_valueBeyondIntRangeIsParsedAsLong() {
+	void valueBeyondIntRangeIsParsedAsLong() {
 		assertThat(SwapiValues.toLong("1000000000000")).isEqualTo(1_000_000_000_000L);
 	}
 
 	@Test
-	void E27_trailingSpaceIsIgnored() {
+	void trailingSpaceIsIgnored() {
 		assertThat(SwapiValues.toDouble("36.8 ")).isEqualTo(36.8);
 	}
 
 	@Test
-	void E27_decimalWithZeroFractionIsParsed() {
+	void decimalWithZeroFractionIsParsed() {
 		assertThat(SwapiValues.toDouble("4.0")).isEqualTo(4.0);
 	}
 
 	@Test
-	void E27_thousandsSeparatorIsRemovedInDecimals() {
+	void thousandsSeparatorIsRemovedInDecimals() {
 		assertThat(SwapiValues.toDouble("1,358")).isEqualTo(1358.0);
 	}
 
 	@ParameterizedTest
 	@NullAndEmptySource
 	@ValueSource(strings = { "unknown", "n/a", "none", " ", "30-165" })
-	void E28_unknownTokensRangesAndBlanksBecomeNull(String unknownValue) {
+	void unknownTokensRangesAndBlanksBecomeNull(String unknownValue) {
 		assertThat(SwapiValues.toLong(unknownValue)).isNull();
 		assertThat(SwapiValues.toDouble(unknownValue)).isNull();
 	}
 
 	@ParameterizedTest
 	@ValueSource(strings = { "abc", "12abc", "1.2.3", "--5" })
-	void E48_nonNumericTextBecomesNullWithoutException(String notANumber) {
+	void nonNumericTextBecomesNullWithoutException(String notANumber) {
 		assertThat(SwapiValues.toLong(notANumber)).isNull();
 		assertThat(SwapiValues.toDouble(notANumber)).isNull();
 	}
 
 	@Test
-	void E48_decimalTextInIntegerFieldBecomesNull() {
+	void decimalTextInIntegerFieldBecomesNull() {
 		assertThat(SwapiValues.toLong("36.8")).isNull();
 	}
 
 	@Test
-	void E30_isoDateIsParsed() {
+	void isoDateIsParsed() {
 		assertThat(SwapiValues.toDate("1977-05-25")).isEqualTo(LocalDate.of(1977, 5, 25));
 	}
 
 	@ParameterizedTest
 	@NullAndEmptySource
 	@ValueSource(strings = { "25/05/1977", "not a date", "1977-13-45" })
-	void E48_unparseableDateBecomesNull(String badDate) {
+	void unparseableDateBecomesNull(String badDate) {
 		assertThat(SwapiValues.toDate(badDate)).isNull();
 	}
 
 	@Test
-	void E29_idIsTheLastSegmentOfTheUrl() {
+	void idIsTheLastSegmentOfTheUrl() {
 		assertThat(SwapiValues.idFromUrl("https://www.swapi.tech/api/films/1")).isEqualTo("1");
 	}
 
 	@Test
-	void E29_idIgnoresTrailingSlash() {
+	void idIgnoresTrailingSlash() {
 		assertThat(SwapiValues.idFromUrl("https://www.swapi.tech/api/planets/42/")).isEqualTo("42");
 	}
 
 	@ParameterizedTest
 	@NullAndEmptySource
 	@ValueSource(strings = { "  " })
-	void E29_nullOrBlankUrlHasNoId(String missingUrl) {
+	void nullOrBlankUrlHasNoId(String missingUrl) {
 		assertThat(SwapiValues.idFromUrl(missingUrl)).isNull();
 	}
 
 	@Test
-	void E29_nullUrlListBecomesEmptyList() {
+	void nullUrlListBecomesEmptyList() {
 		assertThat(SwapiValues.idsFromUrls(null)).isEmpty();
 	}
 
 	@Test
-	void E29_urlListBecomesIdList() {
+	void urlListBecomesIdList() {
 		List<String> filmUrls = List.of("https://www.swapi.tech/api/films/1", "https://www.swapi.tech/api/films/5");
 
 		assertThat(SwapiValues.idsFromUrls(filmUrls)).containsExactly("1", "5");

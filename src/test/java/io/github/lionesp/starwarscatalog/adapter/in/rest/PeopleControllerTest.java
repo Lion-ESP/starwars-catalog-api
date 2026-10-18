@@ -1,5 +1,6 @@
 package io.github.lionesp.starwarscatalog.adapter.in.rest;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -17,7 +18,6 @@ import io.github.lionesp.starwarscatalog.domain.model.Person;
 import io.github.lionesp.starwarscatalog.domain.page.Page;
 import io.github.lionesp.starwarscatalog.domain.page.PageQuery;
 import java.util.List;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -36,7 +36,6 @@ class PeopleControllerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E10: page y size llegan al servicio y la respuesta tiene la forma exacta de PageResponse")
 	void listDelegatesAndRespondsWithPageShape() throws Exception {
 		when(peopleService.list(any(CatalogFilter.class), any(PageQuery.class)))
 				.thenReturn(new Page<>(List.of(luke()), 2, 10, 82, 9));
@@ -57,11 +56,10 @@ class PeopleControllerTest extends CatalogWebTestSupport {
 
 		ArgumentCaptor<PageQuery> query = ArgumentCaptor.forClass(PageQuery.class);
 		verify(peopleService).list(eq(CatalogFilter.of(null, null)), query.capture());
-		org.assertj.core.api.Assertions.assertThat(query.getValue()).isEqualTo(new PageQuery(2, 10));
+		assertThat(query.getValue()).isEqualTo(new PageQuery(2, 10));
 	}
 
 	@Test
-	@DisplayName("E6 y E11: token USER sin page ni size usa los defaults 1 y 10")
 	void userTokenWithoutPagingUsesDefaults() throws Exception {
 		when(peopleService.list(any(CatalogFilter.class), any(PageQuery.class)))
 				.thenReturn(new Page<>(List.of(), 1, 10, 0, 0));
@@ -73,7 +71,6 @@ class PeopleControllerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E16 y E19: name e id llegan normalizados al filtro")
 	void nameAndIdFiltersReachTheService() throws Exception {
 		when(peopleService.list(any(CatalogFilter.class), any(PageQuery.class)))
 				.thenReturn(new Page<>(List.of(), 1, 1, 0, 0));
@@ -86,7 +83,6 @@ class PeopleControllerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E19: name en blanco se ignora")
 	void blankNameIsIgnored() throws Exception {
 		when(peopleService.list(any(CatalogFilter.class), any(PageQuery.class)))
 				.thenReturn(new Page<>(List.of(), 1, 10, 0, 0));
@@ -98,7 +94,6 @@ class PeopleControllerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E12, E45, E46 y E47: una página vacía con totales reales se responde 200")
 	void emptyPageWithRealTotalsIsOk() throws Exception {
 		when(peopleService.list(any(CatalogFilter.class), any(PageQuery.class)))
 				.thenReturn(new Page<>(List.of(), 2147483647, 100, 82, 1));
@@ -111,7 +106,7 @@ class PeopleControllerTest extends CatalogWebTestSupport {
 				.andExpect(jsonPath("$.totalPages").value(1));
 	}
 
-	@ParameterizedTest(name = "E13: {0}={1} responde 400 que nombra {0}")
+	@ParameterizedTest(name = "{0}={1} answers 400 naming {0}")
 	@CsvSource({"page,0", "page,-1", "page,abc", "size,0", "size,101", "size,abc", "size,1.5"})
 	void invalidPagingNamesTheParameter(String parameter, String value) throws Exception {
 		mockMvc.perform(get(PEOPLE_URL).param(parameter, value).header(HttpHeaders.AUTHORIZATION, userToken()))
@@ -121,7 +116,7 @@ class PeopleControllerTest extends CatalogWebTestSupport {
 				.andExpect(jsonPath("$.detail").value(containsString(parameter)));
 	}
 
-	@ParameterizedTest(name = "E23: id={0} en el query responde 400 que nombra id")
+	@ParameterizedTest(name = "id={0} in the query answers 400 naming id")
 	@ValueSource(strings = {"abc", "0", "-3", "1.5"})
 	void invalidIdInQueryNamesTheParameter(String value) throws Exception {
 		mockMvc.perform(get(PEOPLE_URL).param("id", value).header(HttpHeaders.AUTHORIZATION, userToken()))
@@ -132,7 +127,6 @@ class PeopleControllerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E23: id inválido en la ruta responde 400 que nombra id")
 	void invalidIdInPathNamesTheParameter() throws Exception {
 		when(peopleService.get("abc")).thenThrow(new InvalidParameterException("id", "id must be a positive integer"));
 
@@ -143,7 +137,6 @@ class PeopleControllerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E24: el detalle delega en get(id) y responde la entidad")
 	void detailDelegatesToGet() throws Exception {
 		when(peopleService.get("1")).thenReturn(luke());
 
@@ -155,7 +148,6 @@ class PeopleControllerTest extends CatalogWebTestSupport {
 	}
 
 	@Test
-	@DisplayName("E25: un id inexistente responde 404 Problem Details")
 	void missingIdIsNotFound() throws Exception {
 		when(peopleService.get("9999")).thenThrow(new CatalogItemNotFoundException("9999"));
 

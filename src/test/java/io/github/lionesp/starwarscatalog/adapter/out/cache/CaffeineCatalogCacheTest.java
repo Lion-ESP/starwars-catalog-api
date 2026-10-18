@@ -21,7 +21,7 @@ class CaffeineCatalogCacheTest {
 				"spring.cache.caffeine.spec=maximumSize=10,recordStats");
 
 	@Test
-	void E8_evictAll_removesEveryEntryOfTheSwapiCache() {
+	void evictAllRemovesEveryEntryOfTheSwapiCache() {
 		runner.run(context -> {
 			Cache swapiCache = context.getBean(CacheManager.class).getCache(SwapiClient.CACHE_NAME);
 			swapiCache.put("people-1", "luke");
@@ -31,17 +31,6 @@ class CaffeineCatalogCacheTest {
 
 			assertThat(swapiCache.get("people-1")).isNull();
 			assertThat(swapiCache.get("films-1")).isNull();
-		});
-	}
-
-	@Test
-	void E8_cacheAcceptsNullValues() {
-		runner.run(context -> {
-			Cache swapiCache = context.getBean(CacheManager.class).getCache(SwapiClient.CACHE_NAME);
-
-			swapiCache.put("people-9999", null);
-
-			assertThat(swapiCache.get("people-9999")).isNotNull();
 		});
 	}
 

@@ -2,30 +2,23 @@ package io.github.lionesp.starwarscatalog.adapter.out.swapi.mapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.lionesp.starwarscatalog.adapter.out.swapi.SwapiFixtures;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.dto.SwapiItem;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.dto.SwapiItemResponse;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.dto.SwapiVehicleProperties;
 import io.github.lionesp.starwarscatalog.domain.model.Vehicle;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.json.JsonMapper;
 
 class VehicleMapperTest {
-
-	private static final JsonMapper JSON = JsonMapper.builder().build();
 
 	private final VehicleMapper mapper = new VehicleMapper();
 
 	@Test
-	void E31_detailResultEnvelopeMapsToDomain() throws IOException {
-		SwapiItemResponse<SwapiVehicleProperties> response;
-		try (InputStream stream = getClass().getResourceAsStream("/swapi/vehicle-detail.json")) {
-			response = JSON.readValue(stream, new TypeReference<>() {
-			});
-		}
+	void detailResultEnvelopeMapsToDomain() {
+		SwapiItemResponse<SwapiVehicleProperties> response = SwapiFixtures.readFixture("vehicle-detail", new TypeReference<>() {
+		});
 
 		Vehicle vehicle = mapper.toDomain(response.result());
 
@@ -36,7 +29,7 @@ class VehicleMapperTest {
 	}
 
 	@Test
-	void E28_unknownNumericFieldsBecomeNull() {
+	void unknownNumericFieldsBecomeNull() {
 		SwapiVehicleProperties unknownValues = new SwapiVehicleProperties("V", "m", "mf", "cls", "unknown", "n/a",
 				"none", "30-165", "", "abc", "c", List.of(), List.of());
 

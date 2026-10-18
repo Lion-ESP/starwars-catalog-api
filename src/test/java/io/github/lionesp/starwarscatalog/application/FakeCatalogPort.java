@@ -5,7 +5,6 @@ import io.github.lionesp.starwarscatalog.domain.model.Person;
 import io.github.lionesp.starwarscatalog.domain.page.InMemoryPaginator;
 import io.github.lionesp.starwarscatalog.domain.page.Page;
 import io.github.lionesp.starwarscatalog.domain.page.PageQuery;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;

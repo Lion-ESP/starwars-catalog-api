@@ -2,31 +2,24 @@ package io.github.lionesp.starwarscatalog.adapter.out.swapi.mapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.lionesp.starwarscatalog.adapter.out.swapi.SwapiFixtures;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.dto.SwapiFilmProperties;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.dto.SwapiItem;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.dto.SwapiListResponse;
 import io.github.lionesp.starwarscatalog.domain.model.Film;
-import java.io.IOException;
-import java.io.InputStream;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.json.JsonMapper;
 
 class FilmMapperTest {
-
-	private static final JsonMapper JSON = JsonMapper.builder().build();
 
 	private final FilmMapper mapper = new FilmMapper();
 
 	@Test
-	void E31_resultListEnvelopeMapsToDomain() throws IOException {
-		SwapiListResponse<SwapiFilmProperties> response;
-		try (InputStream stream = getClass().getResourceAsStream("/swapi/films.json")) {
-			response = JSON.readValue(stream, new TypeReference<>() {
-			});
-		}
+	void resultListEnvelopeMapsToDomain() {
+		SwapiListResponse<SwapiFilmProperties> response = SwapiFixtures.readFixture("films", new TypeReference<>() {
+		});
 
 		List<Film> films = response.result().stream().map(mapper::toDomain).toList();
 
@@ -45,12 +38,9 @@ class FilmMapperTest {
 	}
 
 	@Test
-	void E30_releaseDateAndEpisodeAreMapped() throws IOException {
-		SwapiListResponse<SwapiFilmProperties> response;
-		try (InputStream stream = getClass().getResourceAsStream("/swapi/films.json")) {
-			response = JSON.readValue(stream, new TypeReference<>() {
-			});
-		}
+	void releaseDateAndEpisodeAreMapped() {
+		SwapiListResponse<SwapiFilmProperties> response = SwapiFixtures.readFixture("films", new TypeReference<>() {
+		});
 
 		Film newHope = mapper.toDomain(response.result().get(0));
 
@@ -59,7 +49,7 @@ class FilmMapperTest {
 	}
 
 	@Test
-	void E48_unparseableReleaseDateBecomesNullAndRestIsMapped() {
+	void unparseableReleaseDateBecomesNullAndRestIsMapped() {
 		SwapiFilmProperties badDate = new SwapiFilmProperties("Odd", 7, "d", "p", "someday", "crawl", null, null,
 				null, null, null);
 

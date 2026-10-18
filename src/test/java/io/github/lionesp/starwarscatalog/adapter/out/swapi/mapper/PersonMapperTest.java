@@ -2,32 +2,22 @@ package io.github.lionesp.starwarscatalog.adapter.out.swapi.mapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.lionesp.starwarscatalog.adapter.out.swapi.SwapiFixtures;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.dto.SwapiItem;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.dto.SwapiPageResponse;
 import io.github.lionesp.starwarscatalog.adapter.out.swapi.dto.SwapiPersonProperties;
 import io.github.lionesp.starwarscatalog.domain.model.Person;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.json.JsonMapper;
 
 class PersonMapperTest {
 
-	private static final JsonMapper JSON = JsonMapper.builder().build();
-
 	private final PersonMapper mapper = new PersonMapper();
 
-	private static <R> R read(String fixture, TypeReference<R> type) throws IOException {
-		try (InputStream stream = PersonMapperTest.class.getResourceAsStream("/swapi/" + fixture)) {
-			return JSON.readValue(stream, type);
-		}
-	}
-
 	@Test
-	void E31_pagedResultsEnvelopeMapsToDomain() throws IOException {
-		SwapiPageResponse<SwapiPersonProperties> response = read("people-page.json", new TypeReference<>() {
+	void pagedResultsEnvelopeMapsToDomain() {
+		SwapiPageResponse<SwapiPersonProperties> response = SwapiFixtures.readFixture("people-page", new TypeReference<>() {
 		});
 
 		List<Person> people = response.results().stream().map(mapper::toDomain).toList();
@@ -41,7 +31,7 @@ class PersonMapperTest {
 	}
 
 	@Test
-	void E29_missingRelationsMapToEmptyListsAndNullHomeworld() {
+	void missingRelationsMapToEmptyListsAndNullHomeworld() {
 		SwapiPersonProperties noRelations = new SwapiPersonProperties("Ghost", null, null, "unknown", "n/a", null,
 				null, null, null, null, null, null);
 
@@ -54,7 +44,7 @@ class PersonMapperTest {
 	}
 
 	@Test
-	void E28_unknownHeightAndMassBecomeNull() {
+	void unknownHeightAndMassBecomeNull() {
 		SwapiPersonProperties unknownMeasures = new SwapiPersonProperties("Ghost", null, null, "unknown", "n/a",
 				null, null, null, null, List.of(), List.of(), List.of());
 

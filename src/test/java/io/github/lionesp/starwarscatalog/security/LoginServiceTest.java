@@ -6,9 +6,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import io.github.lionesp.testsupport.TestCredentials;
 import java.time.Clock;
 import java.time.Duration;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -23,30 +23,27 @@ import org.springframework.security.core.authority.AuthorityUtils;
 @ExtendWith(OutputCaptureExtension.class)
 class LoginServiceTest {
 
-	private static final String SECRET = "login-service-test-secret-with-more-than-32-bytes";
-
-	private final JwtProperties properties = new JwtProperties(SECRET, "starwars-catalog-api", Duration.ofMinutes(30));
+	private final JwtProperties properties = new JwtProperties(TestCredentials.JWT_SECRET, "starwars-catalog-api",
+			Duration.ofMinutes(30));
 	private final TokenService tokenService = new TokenService(properties, Clock.systemUTC());
 	private final AuthenticationManager authenticationManager = mock(AuthenticationManager.class);
 	private final LoginService loginService = new LoginService(authenticationManager, tokenService);
 
 	@Test
-	@DisplayName("a successful login issues a token with the role names without prefix")
 	void successfulLoginIssuesTokenWithRolesWithoutPrefix() {
-		Authentication authenticated = UsernamePasswordAuthenticationToken.authenticated("admin", null,
+		Authentication authenticated = UsernamePasswordAuthenticationToken.authenticated(TestCredentials.ADMIN_USERNAME, null,
 				AuthorityUtils.createAuthorityList("ROLE_USER", "ROLE_ADMIN", "FACTOR_PASSWORD"));
 		when(authenticationManager.authenticate(any())).thenReturn(authenticated);
 
-		IssuedToken issued = loginService.login("admin", "admin-password");
+		IssuedToken issued = loginService.login(TestCredentials.ADMIN_USERNAME, TestCredentials.ADMIN_PASSWORD);
 
 		var decoded = tokenService.decoder().decode(issued.value());
-		assertThat(decoded.getSubject()).isEqualTo("admin");
+		assertThat(decoded.getSubject()).isEqualTo(TestCredentials.ADMIN_USERNAME);
 		assertThat(decoded.getClaimAsStringList(TokenService.ROLES_CLAIM)).containsExactlyInAnyOrder("USER", "ADMIN");
-		assertThat(issued.expiresInSeconds()).isEqualTo(1800);
+		assertThat(issued.expiresInSeconds()).isEqualTo(Duration.ofMinutes(30).toSeconds());
 	}
 
 	@Test
-	@DisplayName("bad credentials are rethrown and the username is logged without the password")
 	void badCredentialsAreRethrownAndLoggedWithoutThePassword(CapturedOutput output) {
 		when(authenticationManager.authenticate(any())).thenThrow(new BadCredentialsException("bad"));
 
@@ -58,7 +55,6 @@ class LoginServiceTest {
 	}
 
 	@Test
-	@DisplayName("control characters in the username cannot forge log lines")
 	void controlCharactersInTheUsernameAreNeutralizedInTheLog(CapturedOutput output) {
 		when(authenticationManager.authenticate(any())).thenThrow(new BadCredentialsException("bad"));
 
@@ -69,11 +65,10 @@ class LoginServiceTest {
 	}
 
 	@Test
-	@DisplayName("an internal authentication failure is not turned into bad credentials")
 	void internalAuthenticationFailureIsPropagatedUntouched() {
 		InternalAuthenticationServiceException internalFailure = new InternalAuthenticationServiceException("store down");
 		when(authenticationManager.authenticate(any())).thenThrow(internalFailure);
 
-		assertThatThrownBy(() -> loginService.login("user", "user-password")).isSameAs(internalFailure);
+		assertThatThrownBy(() -> loginService.login(TestCredentials.USER_USERNAME, TestCredentials.USER_PASSWORD)).isSameAs(internalFailure);
 	}
 }

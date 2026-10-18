@@ -2,9 +2,11 @@ package io.github.lionesp.starwarscatalog.adapter.in.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.concurrent.atomic.AtomicReference;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
 import java.util.UUID;
-
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -29,7 +31,7 @@ class CorrelationIdFilterTest {
 		AtomicReference<String> mdcSeenByChain = new AtomicReference<>();
 		MockFilterChain chain = new MockFilterChain() {
 			@Override
-			public void doFilter(jakarta.servlet.ServletRequest req, jakarta.servlet.ServletResponse res) {
+			public void doFilter(ServletRequest req, ServletResponse res) {
 				mdcSeenByChain.set(MDC.get(CorrelationIdFilter.MDC_KEY));
 			}
 		};
@@ -38,7 +40,7 @@ class CorrelationIdFilterTest {
 	}
 
 	@Test
-	void E39_validIncomingHeaderIsEchoedAndLogged() throws Exception {
+	void validIncomingHeaderIsEchoedAndLogged() throws Exception {
 		Outcome outcome = run("abc-123_X.y");
 
 		assertThat(outcome.responseHeader()).isEqualTo("abc-123_X.y");
@@ -46,7 +48,7 @@ class CorrelationIdFilterTest {
 	}
 
 	@Test
-	void E39_missingHeaderGeneratesUuid() throws Exception {
+	void missingHeaderGeneratesUuid() throws Exception {
 		Outcome outcome = run(null);
 
 		assertThat(UUID.fromString(outcome.responseHeader())).isNotNull();
@@ -54,14 +56,14 @@ class CorrelationIdFilterTest {
 	}
 
 	@Test
-	void E39_mdcIsCleanAfterTheRequest() throws Exception {
+	void mdcIsCleanAfterTheRequest() throws Exception {
 		run("abc");
 
 		assertThat(MDC.get(CorrelationIdFilter.MDC_KEY)).isNull();
 	}
 
 	@Test
-	void E53_headerLongerThan64IsReplacedByUuid() throws Exception {
+	void headerLongerThan64IsReplacedByUuid() throws Exception {
 		String tooLong = "a".repeat(65);
 
 		Outcome outcome = run(tooLong);
@@ -72,15 +74,15 @@ class CorrelationIdFilterTest {
 	}
 
 	@Test
-	void E53_headerOfExactly64IsAccepted() throws Exception {
+	void headerOfExactly64IsAccepted() throws Exception {
 		String atLimit = "a".repeat(64);
 
 		assertThat(run(atLimit).responseHeader()).isEqualTo(atLimit);
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"has space", "semi;colon", "inject\r\nX-Evil: 1", "line\nfeed", "carriage\rreturn", "ñandú", ""})
-	void E53_headerWithDisallowedCharactersIsReplacedByUuid(String invalidHeader) throws Exception {
+	@ValueSource(strings = {"has space", "semi;colon", "inject\r\nX-Evil: 1", "line\nfeed", "carriage\rreturn", "caf\u00e9", ""})
+	void headerWithDisallowedCharactersIsReplacedByUuid(String invalidHeader) throws Exception {
 		Outcome outcome = run(invalidHeader);
 
 		assertThat(outcome.responseHeader()).isNotEqualTo(invalidHeader);
@@ -96,11 +98,11 @@ class CorrelationIdFilterTest {
 		filter.doFilter(request, response, new MockFilterChain());
 		String idOfFirstPass = response.getHeader(CorrelationIdFilter.HEADER_NAME);
 
-		request.setDispatcherType(jakarta.servlet.DispatcherType.ERROR);
+		request.setDispatcherType(DispatcherType.ERROR);
 		MockHttpServletResponse errorResponse = new MockHttpServletResponse();
 		filter.doFilter(request, errorResponse, new MockFilterChain() {
 			@Override
-			public void doFilter(jakarta.servlet.ServletRequest req, jakarta.servlet.ServletResponse res) {
+			public void doFilter(ServletRequest req, ServletResponse res) {
 				mdcInErrorDispatch.set(MDC.get(CorrelationIdFilter.MDC_KEY));
 			}
 		});

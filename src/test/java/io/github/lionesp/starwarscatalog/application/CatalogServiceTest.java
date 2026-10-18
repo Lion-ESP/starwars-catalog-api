@@ -1,19 +1,17 @@
 package io.github.lionesp.starwarscatalog.application;
 
+import static io.github.lionesp.starwarscatalog.application.FakeCatalogPort.person;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import io.github.lionesp.starwarscatalog.domain.catalog.CatalogFilter;
 import io.github.lionesp.starwarscatalog.domain.catalog.CatalogItemNotFoundException;
 import io.github.lionesp.starwarscatalog.domain.exception.InvalidParameterException;
 import io.github.lionesp.starwarscatalog.domain.model.Person;
 import io.github.lionesp.starwarscatalog.domain.page.Page;
 import io.github.lionesp.starwarscatalog.domain.page.PageQuery;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-
 import java.util.List;
-
-import static io.github.lionesp.starwarscatalog.application.FakeCatalogPort.person;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.Test;
 
 class CatalogServiceTest {
 
@@ -24,18 +22,20 @@ class CatalogServiceTest {
 	private final CatalogService<Person> service = new CatalogService<>(port);
 
 	@Test
-	@DisplayName("E10 without filters delegates the page to the port as is")
 	void withoutFiltersDelegatesPage() {
 		PageQuery pageTwoSizeOne = new PageQuery(2, 1);
 
 		Page<Person> result = service.list(CatalogFilter.of(null, null), pageTwoSizeOne);
 
 		assertThat(port.calls).containsExactly("findPage:2:1");
-		assertThat(result).isEqualTo(port.findPage(pageTwoSizeOne));
+		assertThat(result.content()).containsExactly(anakin);
+		assertThat(result.page()).isEqualTo(2);
+		assertThat(result.size()).isEqualTo(1);
+		assertThat(result.totalElements()).isEqualTo(3);
+		assertThat(result.totalPages()).isEqualTo(3);
 	}
 
 	@Test
-	@DisplayName("E19 blank name behaves as no filter")
 	void blankNameBehavesAsNoFilter() {
 		CatalogFilter blankName = CatalogFilter.of(null, "   ");
 
@@ -45,7 +45,6 @@ class CatalogServiceTest {
 	}
 
 	@Test
-	@DisplayName("E16 name filter paginates the matches in memory")
 	void nameFilterPaginatesInMemory() {
 		CatalogFilter skyFragment = CatalogFilter.of(null, "sky");
 
@@ -58,7 +57,6 @@ class CatalogServiceTest {
 	}
 
 	@Test
-	@DisplayName("E18 name without matches returns an empty page")
 	void nameWithoutMatchesReturnsEmptyPage() {
 		CatalogFilter noMatchName = CatalogFilter.of(null, "zzz");
 
@@ -70,7 +68,6 @@ class CatalogServiceTest {
 	}
 
 	@Test
-	@DisplayName("E20 id filter looks the item up by id")
 	void idFilterFindsById() {
 		CatalogFilter existingId = CatalogFilter.of("1", null);
 
@@ -85,7 +82,6 @@ class CatalogServiceTest {
 	}
 
 	@Test
-	@DisplayName("E21 id filter for a missing item returns an empty page")
 	void idFilterMissingReturnsEmptyPage() {
 		CatalogFilter missingId = CatalogFilter.of("9999", null);
 
@@ -97,7 +93,6 @@ class CatalogServiceTest {
 	}
 
 	@Test
-	@DisplayName("E22 id and matching name returns the item without searching by name")
 	void idAndMatchingNameReturnsItem() {
 		CatalogFilter idWithUppercaseName = CatalogFilter.of("1", "LUKE");
 
@@ -108,7 +103,6 @@ class CatalogServiceTest {
 	}
 
 	@Test
-	@DisplayName("E22 id and non matching name returns an empty page")
 	void idAndNonMatchingNameReturnsEmptyPage() {
 		CatalogFilter idWithOtherName = CatalogFilter.of("1", "vader");
 
@@ -116,11 +110,10 @@ class CatalogServiceTest {
 
 		assertThat(result.content()).isEmpty();
 		assertThat(result.totalElements()).isZero();
-		assertThat(port.calls).doesNotContain("findAllByName:vader");
+		assertThat(port.calls).containsExactly("findById:1");
 	}
 
 	@Test
-	@DisplayName("E47 id filter on a page past the end keeps the totals")
 	void idFilterPastEndKeepsTotals() {
 		CatalogFilter existingId = CatalogFilter.of("1", null);
 
@@ -133,7 +126,6 @@ class CatalogServiceTest {
 	}
 
 	@Test
-	@DisplayName("E24 get returns the existing entity")
 	void getReturnsEntity() {
 		Person found = service.get("1");
 
@@ -141,13 +133,11 @@ class CatalogServiceTest {
 	}
 
 	@Test
-	@DisplayName("E25 get of a missing id throws not found")
 	void getMissingThrowsNotFound() {
 		assertThatThrownBy(() -> service.get("9999")).isInstanceOf(CatalogItemNotFoundException.class);
 	}
 
 	@Test
-	@DisplayName("E23 get of a non numeric id throws invalid parameter id")
 	void getInvalidIdThrowsInvalidParameter() {
 		assertThatThrownBy(() -> service.get("abc"))
 				.isInstanceOfSatisfying(InvalidParameterException.class,
