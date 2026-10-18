@@ -79,4 +79,28 @@ class CatalogFilterTest {
 				.isInstanceOf(InvalidParameterException.class);
 	}
 
+	@Test
+	void nameAtTheMaximumLengthIsAccepted() {
+		String longestAllowedName = "a".repeat(CatalogFilter.MAX_NAME_LENGTH);
+
+		assertThat(CatalogFilter.of(null, longestAllowedName).nameFilter()).contains(longestAllowedName);
+	}
+
+	@Test
+	void nameLongerThanTheMaximumNamesParameter() {
+		String overlongName = "a".repeat(CatalogFilter.MAX_NAME_LENGTH + 1);
+
+		assertThatThrownBy(() -> CatalogFilter.of(null, overlongName))
+				.isInstanceOfSatisfying(InvalidParameterException.class,
+						exception -> assertThat(exception.parameter()).isEqualTo("name"));
+	}
+
+	@Test
+	void surroundingSpacesDoNotCountTowardsTheNameLength() {
+		String paddedLongestName = "  " + "a".repeat(CatalogFilter.MAX_NAME_LENGTH) + "  ";
+
+		assertThat(CatalogFilter.of(null, paddedLongestName).nameFilter())
+				.contains("a".repeat(CatalogFilter.MAX_NAME_LENGTH));
+	}
+
 }

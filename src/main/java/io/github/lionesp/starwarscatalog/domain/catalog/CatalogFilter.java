@@ -15,7 +15,12 @@ import java.util.Optional;
  */
 public record CatalogFilter(String id, String name) {
 
+	/** Longest name fragment a client may filter by, after trimming. */
+	public static final int MAX_NAME_LENGTH = 100;
+
 	private static final String ID_PARAMETER = "id";
+
+	private static final String NAME_PARAMETER = "name";
 
 	/**
 	 * Builds a filter from raw client input.
@@ -23,12 +28,22 @@ public record CatalogFilter(String id, String name) {
 	 * @param rawId   raw id text; {@code null} or blank means absent
 	 * @param rawName raw name text; {@code null} or blank means absent
 	 * @return the filter
-	 * @throws InvalidParameterException if {@code rawId} is present but not a positive integer
+	 * @throws InvalidParameterException if {@code rawId} is present but not a positive integer, or if the
+	 *                                   trimmed {@code rawName} is longer than {@value #MAX_NAME_LENGTH}
 	 */
 	public static CatalogFilter of(String rawId, String rawName) {
 		String id = rawId == null || rawId.isBlank() ? null : validateId(rawId);
-		String name = rawName == null || rawName.isBlank() ? null : rawName.trim();
+		String name = rawName == null || rawName.isBlank() ? null : validateName(rawName);
 		return new CatalogFilter(id, name);
+	}
+
+	private static String validateName(String rawName) {
+		String trimmed = rawName.trim();
+		if (trimmed.length() > MAX_NAME_LENGTH) {
+			throw new InvalidParameterException(NAME_PARAMETER,
+					"name must be at most " + MAX_NAME_LENGTH + " characters");
+		}
+		return trimmed;
 	}
 
 	/**

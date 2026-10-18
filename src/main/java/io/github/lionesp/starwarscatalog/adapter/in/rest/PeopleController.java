@@ -14,7 +14,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.constraints.Size;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -69,7 +68,7 @@ public class PeopleController {
 					schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "503", description = "SWAPI is temporarily unavailable",
 			headers = @Header(name = "Retry-After", description = "Seconds to wait before retrying",
-					schema = @Schema(type = "integer")),
+					schema = @Schema(implementation = Integer.class)),
 			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
 					schema = @Schema(implementation = ProblemDetail.class)))
 	public PageResponse<Person> list(
@@ -80,7 +79,7 @@ public class PeopleController {
 			@Parameter(description = "Exact id, a positive integer")
 			@RequestParam(required = false) String id,
 			@Parameter(description = "Case-insensitive partial name (blank is ignored, up to 100 characters)")
-			@Size(max = 100) @RequestParam(required = false) String name) {
+			@RequestParam(required = false) String name) {
 		return PageResponse.from(service.list(CatalogFilter.of(id, name), PageQuery.of(page, size)));
 	}
 
@@ -110,7 +109,7 @@ public class PeopleController {
 					schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "503", description = "SWAPI is temporarily unavailable",
 			headers = @Header(name = "Retry-After", description = "Seconds to wait before retrying",
-					schema = @Schema(type = "integer")),
+					schema = @Schema(implementation = Integer.class)),
 			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
 					schema = @Schema(implementation = ProblemDetail.class)))
 	public Person get(@PathVariable String id) {

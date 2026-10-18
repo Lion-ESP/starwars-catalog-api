@@ -51,7 +51,7 @@ public class AuthController {
 					schema = @Schema(implementation = ProblemDetail.class)))
 	@ApiResponse(responseCode = "401", description = "Wrong username or password",
 			headers = @Header(name = "WWW-Authenticate", description = "Authentication scheme: Bearer",
-					schema = @Schema(type = "string")),
+					schema = @Schema(implementation = String.class)),
 			content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
 					schema = @Schema(implementation = ProblemDetail.class)))
 	public TokenResponse login(@Valid @RequestBody LoginRequest request) {

@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.MessageSourceResolvable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -21,7 +20,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
-import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
@@ -56,31 +54,6 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 				"Invalid value in field: " + fields);
 		problem.setTitle(BAD_REQUEST_TITLE);
 		problem.setProperty("errors", errors);
-		return handleExceptionInternal(exception, problem, headers, status, request);
-	}
-
-	/**
-	 * Handles a request parameter that failed method validation, such as a name that is too long.
-	 *
-	 * @param exception validation failure
-	 * @param headers   headers to write to the response
-	 * @param status    status to answer
-	 * @param request   current request
-	 * @return a 400 problem that names the first invalid parameter
-	 */
-	@Override
-	protected ResponseEntity<Object> handleHandlerMethodValidationException(HandlerMethodValidationException exception,
-			HttpHeaders headers, HttpStatusCode status, WebRequest request) {
-		var invalid = exception.getParameterValidationResults().stream()
-				.filter(result -> !result.getResolvableErrors().isEmpty())
-				.findFirst();
-		String parameter = invalid.map(result -> result.getMethodParameter().getParameterName()).orElse("unknown");
-		String reason = invalid.flatMap(result -> result.getResolvableErrors().stream().findFirst())
-				.map(MessageSourceResolvable::getDefaultMessage).orElse("the value is not valid");
-		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
-				"Invalid parameter '" + parameter + "': " + reason);
-		problem.setTitle(BAD_REQUEST_TITLE);
-		problem.setProperty("parameter", parameter);
 		return handleExceptionInternal(exception, problem, headers, status, request);
 	}
 

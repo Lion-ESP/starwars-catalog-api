@@ -182,7 +182,7 @@ Los `502` y `503` se loguean con el `requestId` (el mismo `X-Request-Id` de la r
 
 ## Configuración
 
-Las propiedades viven en `src/main/resources/application.yml` y se pueden sobrescribir con variables de entorno (binding relajado de Spring: `swapi.read-timeout` es `SWAPI_READ_TIMEOUT`).
+Las propiedades viven en `src/main/resources/application.yml` y se pueden sobrescribir con variables de entorno (binding relajado de Spring: `swapi.read-timeout` es `SWAPI_READTIMEOUT`: se reemplazan los puntos por guiones bajos y se eliminan los guiones).
 
 | Variable o propiedad | Default | Descripción |
 |---|---|---|
@@ -194,7 +194,7 @@ Las propiedades viven en `src/main/resources/application.yml` y se pueden sobres
 | `app.security.users` | `user` y `admin` | Usuarios con `username`, `password-hash` (BCrypt) y `roles`; ver [Usuarios demo en producción](#usuarios-demo-en-producción) |
 | `swapi.base-url` | `https://www.swapi.tech/api` | URL base de SWAPI |
 | `swapi.connect-timeout` | `2s` | Timeout de conexión |
-| `swapi.read-timeout` | `5s` | Timeout de lectura |
+| `swapi.read-timeout` | `5s` (`10s` en el perfil `prod`) | Timeout de lectura |
 | `swapi.default-retry-after` | `30s` | `Retry-After` cuando SWAPI no informa cuándo reintentar |
 | `spring.cache.caffeine.spec` | `maximumSize=500,expireAfterWrite=1h,recordStats` | Tamaño y TTL de la caché |
 | `resilience4j.retry.instances.swapi` | 3 intentos, espera de `200ms` con backoff exponencial (x2) | Reintentos: solo 5xx y fallas de conexión |

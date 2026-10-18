@@ -2,3 +2,7 @@ logging:
   structured:
     format:
       console: ecs
+
+swapi:
+  # On a 0.1 CPU instance the first call after startup pays the TLS handshake and a cold JIT, which can exceed 5 s.
+  read-timeout: 10s
