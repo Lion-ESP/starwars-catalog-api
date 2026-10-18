@@ -6,11 +6,13 @@ API REST en Java 21 y Spring Boot 4 que expone el catálogo de personajes, pelí
 
 ## Probalo en 2 minutos
 
+La API está desplegada en **https://starwars-catalog-api.onrender.com** ([Swagger UI](https://starwars-catalog-api.onrender.com/swagger-ui.html)).
+
 ```bash
-export BASE_URL=RENDER_URL
+export BASE_URL=https://starwars-catalog-api.onrender.com
 ```
 
-> **Arranque en frío.** La API corre en el plan gratuito de Render: se duerme a los 15 minutos sin tráfico y el primer request tarda alrededor de un minuto en despertarla. Pegale primero a `$BASE_URL/actuator/health` y esperá el `200`.
+> **Arranque en frío.** La API corre en el plan gratuito de Render: se duerme a los 15 minutos sin tráfico y el primer request puede tardar hasta un minuto en despertarla. Pegale primero a `$BASE_URL/actuator/health` y esperá el `200`.
 
 Usuarios de demostración (públicos a propósito, para que cualquiera pueda probar; ver [Usuarios demo en producción](#usuarios-demo-en-producción)):
 
