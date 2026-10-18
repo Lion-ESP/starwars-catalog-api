@@ -7,6 +7,7 @@ El enunciado pide la API desplegada en un servidor gratuito para que el revisor 
 
 ## Decisión
 - **Render con el plan gratuito, desplegando desde el `Dockerfile`** (multi-stage, usuario no root) mediante el blueprint `render.yaml`: genera `JWT_SECRET`, activa el perfil `prod` (logs ECS) y usa `/actuator/health` como health check.
+- Auto-deploy con `autoDeployTrigger: checksPass`: Render despliega un commit de `main` solo si pasó el CI (suite, cobertura y smoke del contenedor), así un commit roto nunca llega a producción.
 - Ajustes de JVM para 512 MB y 0,1 CPU: `-XX:MaxRAMPercentage=65`, `-XX:+ExitOnOutOfMemoryError` (para que la plataforma reinicie el contenedor), `-XX:+UseSerialGC`, `-XX:TieredStopAtLevel=1` y `-Xss512k`.
 - CDS (Class Data Sharing): el build hace una corrida de entrenamiento que levanta el contexto una vez y archiva las clases cargadas (`app.jsa`), y la JVM lo reusa al arrancar. Medido localmente con `--memory 512m` y limitado a 0,1 CPU (la fracción del plan gratuito), el arranque bajó de unos 40 s a unos 25 s; con CPU completa tarda alrededor de 2 s. El contenedor usa alrededor de 150 MiB en reposo. El costo es una imagen unos 60 MB más grande.
 - Timeout de lectura de SWAPI de 10 s en el perfil `prod` (5 s en el resto): con 0,1 CPU, la primera llamada después de arrancar paga el handshake TLS y la JIT en frío. Medido localmente tarda unos 3,4 s contra 1 s de SWAPI, y en Render llegó a superar los 5 s y a responder 503.

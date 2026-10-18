@@ -5,7 +5,7 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     healthCheckPath: /actuator/health
-    autoDeploy: true
+    autoDeployTrigger: checksPass
     envVars:
       - key: JWT_SECRET
         generateValue: true
